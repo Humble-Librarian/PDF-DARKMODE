@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Dark Mode Reader</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Upload Section -->
+    <section id="uploadSection">
+      <div class="upload-container">
+        <div class="logo-header">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7 7h6M7 10h6M7 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="18" cy="18" r="5" fill="#21B5F4" stroke="#151515" stroke-width="1.5"/>
+            <path d="M16.5 18L18 19.5L20 16.5" stroke="#151515" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h1>PDF Dark Mode</h1>
+        </div>
+        <p class="subtitle">Read PDFs comfortably in dark mode. Reduce eye strain with multiple themes.</p>
+
+        <div id="dropZone" class="drop-zone">
+          <input type="file" id="pdfFileInput" accept="application/pdf" hidden>
+          <div class="drop-zone-content">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 16V4M12 4L8 8M12 4L16 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 14V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p class="drop-text">Drop PDF here or <span class="browse-link">browse</span></p>
+            <p class="drop-hint">Your file stays private — processed locally</p>
+          </div>
+        </div>
+
+        <div class="privacy-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+            <path d="M8 11V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>100% Local Processing — No Upload</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREVIEW / READER SECTION -->
+    <div id="previewSection" class="hidden">
+      
+      <!-- Scholar-style Top Toolbar -->
+      <div class="scholar-toolbar">
+        <!-- Left: Logo -->
+        <div class="toolbar-left">
+          <svg class="scholar-logo" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2.12-1.15V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
+          </svg>
+          <span class="toolbar-title" id="fileNameDisplay">Document.pdf</span>
+        </div>
+
+        <!-- Center: Navigation & Zoom -->
+        <div class="toolbar-center">
+          <div class="toolbar-group nav-group">
+            <button class="icon-btn" id="prevPageBtn" title="Previous Page">
+              <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <div class="page-input-wrapper">
+              <input type="number" id="pageInput" min="1" value="1">
+              <span id="pageCountText">/ 0</span>
+            </div>
+            <button class="icon-btn" id="nextPageBtn" title="Next Page">
+              <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group zoom-group">
+            <button class="icon-btn" id="zoomOutBtn" title="Zoom Out">
+              <svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
+            </button>
+            <span id="zoomLevelText">100%</span>
+            <button class="icon-btn" id="zoomInBtn" title="Zoom In">
+              <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            </button>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group action-group">
+            <button class="icon-btn" id="rotateBtn" title="Rotate">
+              <svg viewBox="0 0 24 24"><path d="M15.55 5.55L11 1v3C7.06 4 4 7.06 4 11s3.06 7 7 7c1.53 0 2.96-.49 4.13-1.32l-1.47-1.47C12.83 15.82 11.96 16 11 16c-2.76 0-5-2.24-5-5s2.24-5 5-5v3l4.55-4.55zM13 23l4.55-4.55-4.55-4.55v3c-2.76 0-5-2.24-5-5h-2c0 3.94 3.06 7 7 7v3z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Search & Actions -->
+        <div class="toolbar-right">
+          <!-- Search UI -->
+          <div class="search-container" id="searchContainer">
+            <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" id="searchInput" placeholder="Find in document">
+            <span id="searchResultText" class="search-results-text"></span>
+            <button class="icon-btn small" id="searchPrevBtn" title="Previous match"><svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg></button>
+            <button class="icon-btn small" id="searchNextBtn" title="Next match"><svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg></button>
+          </div>
+
+          <div class="theme-select-wrapper">
+            <select id="themeSelector" class="theme-select">
+              <option value="classic">Classic Dark</option>
+              <option value="claude">Warm Dark</option>
+              <option value="midnight">Blue Dark</option>
+              <option value="forest">Green Dark</option>
+            </select>
+            <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          
+          <button class="icon-btn" id="backBtn" title="Close PDF">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Reader Area -->
+      <div class="reader-workspace">
+        
+        <!-- Floating Left Sidebar Menu -->
+        <div class="floating-sidebar-menu">
+          <button class="sidebar-icon-btn active" id="toggleThumbnailsBtn" title="Thumbnails">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+          </button>
+          <button class="sidebar-icon-btn" id="toggleOutlineBtn" title="Document Outline" disabled style="opacity:0.3">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+          </button>
+        </div>
+
+        <!-- Collapsible Sidebar Panel -->
+        <div class="sidebar-panel" id="sidebarPanel">
+          <div class="thumbnail-container" id="thumbnailContainer">
+            <!-- Thumbnails inserted here -->
+          </div>
+        </div>
+
+        <!-- Document Viewer Area -->
+        <div class="preview-area">
+          <div class="main-preview" id="mainPreview">
+            <!-- PDF Pages go here -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/pdf.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -24,6 +24,10 @@ With the v2.0.0 overhaul, the rendering pipeline has been rewritten to support v
 | **Thumbnail Image Resolution** | Scale `0.4` | Scale `0.2` | **75% fewer pixels** |
 | **Scroll Experience** | Direct listener (heavy lag) | RequestAnimationFrame debounced | **Smooth 60fps scrolling** |
 
+<p align="center">
+  <img src="performance_comparison.png" alt="Memory Performance Comparison v1 vs v2" width="700">
+</p>
+
 ---
 
 ## ✨ Key Features

@@ -55,19 +55,20 @@
             <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2.12-1.15V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
           </svg>
           <span class="toolbar-title" id="fileNameDisplay">Document.pdf</span>
+          <span id="progressText" class="loading-text" style="margin-left:8px;"></span>
         </div>
 
         <!-- Center: Navigation & Zoom -->
         <div class="toolbar-center">
           <div class="toolbar-group nav-group">
-            <button class="icon-btn" id="prevPageBtn" title="Previous Page">
+            <button class="icon-btn" id="prevPageBtn" title="Previous Page (Page Up)">
               <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
             </button>
             <div class="page-input-wrapper">
               <input type="number" id="pageInput" min="1" value="1">
               <span id="pageCountText">/ 0</span>
             </div>
-            <button class="icon-btn" id="nextPageBtn" title="Next Page">
+            <button class="icon-btn" id="nextPageBtn" title="Next Page (Page Down)">
               <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </button>
           </div>
@@ -75,11 +76,11 @@
           <div class="toolbar-divider"></div>
 
           <div class="toolbar-group zoom-group">
-            <button class="icon-btn" id="zoomOutBtn" title="Zoom Out">
+            <button class="icon-btn" id="zoomOutBtn" title="Zoom Out (Ctrl+-)">
               <svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
             </button>
             <span id="zoomLevelText">100%</span>
-            <button class="icon-btn" id="zoomInBtn" title="Zoom In">
+            <button class="icon-btn" id="zoomInBtn" title="Zoom In (Ctrl++)">
               <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
             </button>
           </div>
@@ -87,7 +88,7 @@
           <div class="toolbar-divider"></div>
 
           <div class="toolbar-group action-group">
-            <button class="icon-btn" id="rotateBtn" title="Rotate">
+            <button class="icon-btn" id="rotateBtn" title="Rotate (R)">
               <svg viewBox="0 0 24 24"><path d="M15.55 5.55L11 1v3C7.06 4 4 7.06 4 11s3.06 7 7 7c1.53 0 2.96-.49 4.13-1.32l-1.47-1.47C12.83 15.82 11.96 16 11 16c-2.76 0-5-2.24-5-5s2.24-5 5-5v3l4.55-4.55zM13 23l4.55-4.55-4.55-4.55v3c-2.76 0-5-2.24-5-5h-2c0 3.94 3.06 7 7 7v3z"/></svg>
             </button>
           </div>
@@ -98,7 +99,7 @@
           <!-- Search UI -->
           <div class="search-container" id="searchContainer">
             <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-            <input type="text" id="searchInput" placeholder="Find in document">
+            <input type="text" id="searchInput" placeholder="Extracting text..." disabled>
             <span id="searchResultText" class="search-results-text"></span>
             <button class="icon-btn small" id="searchPrevBtn" title="Previous match"><svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg></button>
             <button class="icon-btn small" id="searchNextBtn" title="Next match"><svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg></button>
@@ -107,9 +108,11 @@
           <div class="theme-select-wrapper">
             <select id="themeSelector" class="theme-select">
               <option value="classic">Classic Dark</option>
-              <option value="claude">Warm Dark</option>
+              <option value="claude" selected>Warm Dark</option>
               <option value="midnight">Blue Dark</option>
               <option value="forest">Green Dark</option>
+              <option value="sepia">Sepia</option>
+              <option value="contrast">High Contrast</option>
             </select>
             <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
           </div>
@@ -136,22 +139,32 @@
         <!-- Collapsible Sidebar Panel -->
         <div class="sidebar-panel" id="sidebarPanel">
           <div class="thumbnail-container" id="thumbnailContainer">
-            <!-- Thumbnails inserted here -->
+            <!-- Thumbnails inserted dynamically -->
           </div>
         </div>
 
         <!-- Document Viewer Area -->
         <div class="preview-area">
           <div class="main-preview" id="mainPreview">
-            <!-- PDF Pages go here -->
+            <!-- PDF Pages rendered dynamically -->
           </div>
         </div>
 
       </div>
+
+      <!-- Floating Page Indicator -->
+      <div class="page-indicator" id="pageIndicator">Page 1 of 1</div>
     </div>
   </div>
 
+  <!-- PDF.js Library -->
   <script src="lib/pdf.min.js"></script>
+  
+  <!-- Modular Application Architecture -->
+  <script src="DarkModeProcessor.js"></script>
+  <script src="RenderEngine.js"></script>
+  <script src="ThumbnailManager.js"></script>
+  <script src="UIController.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

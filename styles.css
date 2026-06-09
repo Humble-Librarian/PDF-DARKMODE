@@ -507,6 +507,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .thumbnail-frame {
@@ -516,14 +517,26 @@ html, body {
   overflow: hidden;
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-  transition: border-color 0.1s;
+  transition: border-color 0.15s;
 }
 
 .thumbnail-frame.active {
   border-color: var(--accent);
+  box-shadow: 0 1px 6px rgba(33, 181, 244, 0.3);
 }
 
 .thumbnail-frame canvas {
+  width: 100%;
+  display: block;
+}
+
+/* Thumbnail wrapper for CSS dark mode */
+.thumbnail-wrapper {
+  width: 100%;
+  overflow: hidden;
+}
+
+.thumbnail-wrapper canvas {
   width: 100%;
   display: block;
 }
@@ -534,7 +547,9 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: #3a3a3a;
+  color: #666;
+  font-size: 12px;
 }
 
 .thumbnail-label {
@@ -558,6 +573,7 @@ html, body {
   padding: 24px;
   display: block;
   overscroll-behavior-y: contain;
+  scroll-behavior: auto;
 }
 
 /* Scrollbars */
@@ -601,17 +617,25 @@ html, body {
   box-shadow: var(--shadow-md);
 }
 
-/* --- Page Wrapper (for text layer) --- */
+/* --- Page Wrapper (for text layer + CSS dark mode) --- */
 .page-wrapper {
   position: relative;
   display: inline-block;
   max-width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 
 .page-wrapper canvas {
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+/* CSS Dark Mode wrapper class */
+.dark-mode-css {
+  /* Background set inline by DarkModeProcessor */
 }
 
 /* --- Text Layer (for copy support) --- */
@@ -636,7 +660,80 @@ html, body {
   background: rgba(33, 181, 244, 0.35);
 }
 
-/* --- Loading / Placeholder --- */
+/* ============================================================
+   Page Skeleton (loading state)
+   ============================================================ */
+
+.page-skeleton-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.page-skeleton {
+  background: linear-gradient(90deg, #2a2a2a 25%, #383838 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-page-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ============================================================
+   Floating Page Indicator
+   ============================================================ */
+
+.page-indicator {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e8e8e8;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+
+.page-indicator.visible {
+  opacity: 1;
+}
+
+/* ============================================================
+   Search Highlights
+   ============================================================ */
+
+mark.search-highlight {
+  padding: 1px 0;
+  border-radius: 2px;
+  position: relative;
+  z-index: 3;
+}
+
+/* ============================================================
+   Loading / Placeholder
+   ============================================================ */
+
 .placeholder-msg {
   text-align: center;
   color: var(--text-muted);
@@ -684,6 +781,31 @@ html, body {
   color: #f47171;
   font-size: 12px;
   padding: 20px;
+}
+
+/* ============================================================
+   Progress Bar
+   ============================================================ */
+
+.progress-bar-container {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.05);
+}
+
+.progress-bar-container.active {
+  display: block;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+  border-radius: 0 2px 2px 0;
 }
 
 /* ============================================================

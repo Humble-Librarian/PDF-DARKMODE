@@ -4,6 +4,10 @@ A powerful, fast, and completely customizable PDF reader extension for Chrome, B
 
 Featuring a **viewport-virtualized rendering engine** and a **GPU-accelerated theme system**, it can load 250+ page documents seamlessly while keeping memory footprint extremely low (under 100MB) and CPU usage at a minimum.
 
+<p align="center">
+  <img src="before_after_collage.png" alt="PDF Dark Mode Before vs After Collage" width="800">
+</p>
+
 ---
 
 ## ⚡ Performance Breakdown (v1.x vs v2.0.0)

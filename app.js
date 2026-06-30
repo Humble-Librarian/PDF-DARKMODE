@@ -186,13 +186,7 @@ class PDFDarkMode {
       darkModeProcessor: this.darkModeProcessor,
       theme: this.currentTheme,
       scale: this.currentScale,
-      rotation: this.currentRotation,
-      onVisibleRangeChanged: (start, end) => {
-        // Could be used for analytics or debugging
-      },
-      onPageRendered: (pageIndex) => {
-        // Could trigger thumbnail update
-      }
+      rotation: this.currentRotation
     });
 
     await this.renderEngine.init();

@@ -206,19 +206,6 @@ class UIController {
   }
 
   // =================================================================
-  // Public API
-  // =================================================================
-
-  /**
-   * Update the page input and page count text display.
-   * @param {number} currentPage - 0-based page index
-   * @param {number} totalPages - Total number of pages
-   */
-  updatePageInfo(currentPage, totalPages) {
-    this._updatePageInfo(currentPage, totalPages);
-  }
-
-  // =================================================================
   // DOM Resolution
   // =================================================================
 

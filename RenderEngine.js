@@ -21,9 +21,8 @@ class RenderEngine {
    * @param {DarkModeProcessor} options.darkModeProcessor
    * @param {string} options.theme - Current theme name
    * @param {number} options.scale - Render scale (default 1.0)
+   * @param {number} options.scale - Render scale (default 1.0)
    * @param {number} options.rotation - Rotation in degrees (default 0)
-   * @param {Function} options.onVisibleRangeChanged - Callback(start, end)
-   * @param {Function} options.onPageRendered - Callback(pageIndex)
    */
   constructor(options) {
     this.pdfDocument = options.pdfDocument;
@@ -31,9 +30,8 @@ class RenderEngine {
     this.darkModeProcessor = options.darkModeProcessor;
     this.currentTheme = options.theme || 'claude';
     this.currentScale = options.scale || 1.0;
+    this.currentScale = options.scale || 1.0;
     this.currentRotation = options.rotation || 0;
-    this.onVisibleRangeChanged = options.onVisibleRangeChanged || null;
-    this.onPageRendered = options.onPageRendered || null;
 
     this.totalPages = this.pdfDocument.numPages;
 
@@ -130,10 +128,6 @@ class RenderEngine {
         this.darkModeProcessor.applyCSSDarkMode(state.pageWrapper, themeName);
       }
     }
-  }
-
-  getTheme() {
-    return this.currentTheme;
   }
 
   getTotalPages() {
@@ -404,13 +398,6 @@ class RenderEngine {
     this.visibleRange.start = startPage;
     this.visibleRange.end = endPage;
 
-    // Notify if range changed
-    if (oldStart !== startPage || oldEnd !== endPage) {
-      if (this.onVisibleRangeChanged) {
-        this.onVisibleRangeChanged(startPage, endPage);
-      }
-    }
-
     // Schedule renders for visible pages
     this._scheduleRenders();
 
@@ -601,11 +588,6 @@ class RenderEngine {
       this._renderTextLayer(page, textLayer, viewport, canvas).catch(err => {
         console.warn(`Text layer error page ${pageIndex + 1}:`, err);
       });
-
-      // Callback
-      if (this.onPageRendered) {
-        this.onPageRendered(pageIndex);
-      }
 
     } catch (error) {
       if (error.name === 'RenderingCancelledException') {

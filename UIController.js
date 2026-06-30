@@ -9,6 +9,7 @@ class UIController {
    * @param {Object} options
    * @param {RenderEngine} options.renderEngine - RenderEngine instance for page rendering/navigation
    * @param {Object} options.thumbnailManager - ThumbnailManager instance with setActiveIndex(pageIndex)
+   * @param {Object} [options.outlineManager] - OutlineManager instance with setActivePage(pageIndex)
    * @param {DarkModeProcessor} options.darkModeProcessor - DarkModeProcessor instance for theme info
    * @param {Function} options.onThemeChange - Callback invoked with (themeName) when user changes theme
    * @param {Function} options.onBackClick - Callback invoked when the back/close button is clicked
@@ -23,6 +24,9 @@ class UIController {
 
     /** @type {Object|null} */
     this.thumbnailManager = options.thumbnailManager || null;
+
+    /** @type {Object|null} */
+    this.outlineManager = options.outlineManager || null;
 
     /** @type {DarkModeProcessor|null} */
     this.darkModeProcessor = options.darkModeProcessor || null;
@@ -235,7 +239,10 @@ class UIController {
       themeSelector: document.getElementById('themeSelector'),
       backBtn: document.getElementById('backBtn'),
       toggleThumbnailsBtn: document.getElementById('toggleThumbnailsBtn'),
+      toggleOutlineBtn: document.getElementById('toggleOutlineBtn'),
       sidebarPanel: document.getElementById('sidebarPanel'),
+      thumbnailContainer: document.getElementById('thumbnailContainer'),
+      outlineContainer: document.getElementById('outlineContainer'),
       searchInput: document.getElementById('searchInput'),
       searchPrevBtn: document.getElementById('searchPrevBtn'),
       searchNextBtn: document.getElementById('searchNextBtn'),
@@ -390,16 +397,56 @@ class UIController {
     if (els.toggleThumbnailsBtn) {
       const handler = () => {
         try {
-          if (els.sidebarPanel) {
-            els.sidebarPanel.classList.toggle('collapsed');
+          const isCurrentlyShowingThumbnails = els.thumbnailContainer && els.thumbnailContainer.style.display !== 'none';
+          const isSidebarOpen = els.sidebarPanel && !els.sidebarPanel.classList.contains('collapsed');
+
+          if (isCurrentlyShowingThumbnails && isSidebarOpen) {
+            // Already showing thumbnails and sidebar is open → collapse sidebar
+            els.sidebarPanel.classList.add('collapsed');
+            els.toggleThumbnailsBtn.classList.remove('active');
+          } else {
+            // Switch to thumbnails view and ensure sidebar is open
+            if (els.thumbnailContainer) els.thumbnailContainer.style.display = '';
+            if (els.outlineContainer) els.outlineContainer.style.display = 'none';
+            if (els.sidebarPanel) els.sidebarPanel.classList.remove('collapsed');
+            els.toggleThumbnailsBtn.classList.add('active');
+            if (els.toggleOutlineBtn) els.toggleOutlineBtn.classList.remove('active');
           }
-          els.toggleThumbnailsBtn.classList.toggle('active');
         } catch (err) {
           console.error('UIController: Toggle thumbnails failed:', err);
         }
       };
       els.toggleThumbnailsBtn.addEventListener('click', handler);
       this._boundHandlers['click:toggleThumbnailsBtn'] = handler;
+    }
+
+    // --- Toggle Outline Sidebar ---
+    if (els.toggleOutlineBtn) {
+      const handler = () => {
+        try {
+          if (els.toggleOutlineBtn.disabled) return;
+
+          const isCurrentlyShowingOutline = els.outlineContainer && els.outlineContainer.style.display !== 'none';
+          const isSidebarOpen = els.sidebarPanel && !els.sidebarPanel.classList.contains('collapsed');
+
+          if (isCurrentlyShowingOutline && isSidebarOpen) {
+            // Already showing outline and sidebar is open → collapse sidebar
+            els.sidebarPanel.classList.add('collapsed');
+            els.toggleOutlineBtn.classList.remove('active');
+          } else {
+            // Switch to outline view and ensure sidebar is open
+            if (els.outlineContainer) els.outlineContainer.style.display = '';
+            if (els.thumbnailContainer) els.thumbnailContainer.style.display = 'none';
+            if (els.sidebarPanel) els.sidebarPanel.classList.remove('collapsed');
+            els.toggleOutlineBtn.classList.add('active');
+            if (els.toggleThumbnailsBtn) els.toggleThumbnailsBtn.classList.remove('active');
+          }
+        } catch (err) {
+          console.error('UIController: Toggle outline failed:', err);
+        }
+      };
+      els.toggleOutlineBtn.addEventListener('click', handler);
+      this._boundHandlers['click:toggleOutlineBtn'] = handler;
     }
   }
 
@@ -452,6 +499,15 @@ class UIController {
         if (this._els.pageInput) {
           this._els.pageInput.focus();
           this._els.pageInput.select();
+        }
+        return;
+      }
+
+      // --- Toggle Outline: Ctrl/Cmd + Shift + O ---
+      if (isMod && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
+        e.preventDefault();
+        if (this._els.toggleOutlineBtn && !this._els.toggleOutlineBtn.disabled) {
+          this._els.toggleOutlineBtn.click();
         }
         return;
       }
@@ -958,6 +1014,11 @@ class UIController {
             // Sync active thumbnail
             if (this.thumbnailManager && typeof this.thumbnailManager.setActiveIndex === 'function') {
               this.thumbnailManager.setActiveIndex(latestPage);
+            }
+
+            // Sync active outline item
+            if (this.outlineManager && typeof this.outlineManager.setActivePage === 'function') {
+              this.outlineManager.setActivePage(latestPage);
             }
           } catch (err) {
             console.error('UIController: Debounced scroll sync failed:', err);

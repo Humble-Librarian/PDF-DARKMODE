@@ -18,6 +18,7 @@ class PDFDarkMode {
     this.darkModeProcessor = new DarkModeProcessor();
     this.renderEngine = null;
     this.thumbnailManager = null;
+    this.outlineManager = null;
     this.uiController = null;
 
     this.init();
@@ -210,10 +211,42 @@ class PDFDarkMode {
 
     await this.thumbnailManager.init();
 
-    // 3. Initialize UI Controller
+    // 3. Initialize Outline Manager (if PDF has bookmarks)
+    const outlineContainer = document.getElementById('outlineContainer');
+    const toggleOutlineBtn = document.getElementById('toggleOutlineBtn');
+    if (outlineContainer) {
+      try {
+        const outline = await this.pdfDocument.getOutline();
+        if (outline && outline.length > 0) {
+          this.outlineManager = new OutlineManager(
+            outlineContainer,
+            (pageIndex) => this.renderEngine.jumpToPage(pageIndex)
+          );
+          const hasOutline = await this.outlineManager.init(outline, this.pdfDocument);
+          if (hasOutline && toggleOutlineBtn) {
+            toggleOutlineBtn.disabled = false;
+            toggleOutlineBtn.title = 'Document Outline (Ctrl+Shift+O)';
+          }
+        } else {
+          if (toggleOutlineBtn) {
+            toggleOutlineBtn.disabled = true;
+            toggleOutlineBtn.title = 'No outline available';
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load PDF outline:', err);
+        if (toggleOutlineBtn) {
+          toggleOutlineBtn.disabled = true;
+          toggleOutlineBtn.title = 'No outline available';
+        }
+      }
+    }
+
+    // 4. Initialize UI Controller
     this.uiController = new UIController({
       renderEngine: this.renderEngine,
       thumbnailManager: this.thumbnailManager,
+      outlineManager: this.outlineManager,
       darkModeProcessor: this.darkModeProcessor,
       onThemeChange: (themeName) => this._handleThemeChange(themeName),
       onBackClick: () => this._goBack()
@@ -283,10 +316,28 @@ class PDFDarkMode {
     // Clear containers
     const tc = document.getElementById('thumbnailContainer');
     const mp = document.getElementById('mainPreview');
+    const oc = document.getElementById('outlineContainer');
     if (tc) tc.innerHTML = '';
     if (mp) {
       mp.innerHTML = '';
     }
+    if (oc) {
+      oc.innerHTML = '';
+      oc.style.display = 'none';
+    }
+
+    // Reset sidebar state (restore thumbnails view, disable outline)
+    const toggleOutlineBtn = document.getElementById('toggleOutlineBtn');
+    const toggleThumbnailsBtn = document.getElementById('toggleThumbnailsBtn');
+    if (toggleOutlineBtn) {
+      toggleOutlineBtn.disabled = true;
+      toggleOutlineBtn.title = 'Document Outline';
+      toggleOutlineBtn.classList.remove('active');
+    }
+    if (toggleThumbnailsBtn) {
+      toggleThumbnailsBtn.classList.add('active');
+    }
+    if (tc) tc.style.display = '';
 
     // Reset file input
     const fileInput = document.getElementById('pdfFileInput');
@@ -312,6 +363,10 @@ class PDFDarkMode {
     if (this.uiController) {
       this.uiController.destroy();
       this.uiController = null;
+    }
+    if (this.outlineManager) {
+      this.outlineManager.destroy();
+      this.outlineManager = null;
     }
     if (this.thumbnailManager) {
       this.thumbnailManager.destroy();

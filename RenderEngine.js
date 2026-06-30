@@ -62,6 +62,10 @@ class RenderEngine {
     // Cancellation token
     this._renderId = 0;
 
+    // Intersection observer for visible pages
+    this._intersectionObserver = null;
+    this._visiblePages = new Set();
+
     // Text content cache for search
     this.textCache = new Array(this.totalPages);
   }
@@ -87,6 +91,7 @@ class RenderEngine {
 
     // Set up scroll-based viewport tracking
     this._setupScrollHandler();
+    this._setupIntersectionObserver();
 
     // Initial render pass
     this._updateVisibleRange();
@@ -252,6 +257,11 @@ class RenderEngine {
     }
 
     // Disconnect observers
+    if (this._intersectionObserver) {
+      this._intersectionObserver.disconnect();
+      this._intersectionObserver = null;
+    }
+
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -268,6 +278,7 @@ class RenderEngine {
     this.pageStates.clear();
     this.renderQueue = [];
     this.activeRenders = 0;
+    this._visiblePages.clear();
     this.textCache = [];
   }
 
@@ -345,6 +356,31 @@ class RenderEngine {
     };
 
     this.container.addEventListener('scroll', this._boundScrollHandler, { passive: true });
+  }
+
+  _setupIntersectionObserver() {
+    this._intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const pageIndex = parseInt(entry.target.dataset.pageIndex, 10);
+          if (entry.isIntersecting) {
+            this._visiblePages.add(pageIndex);
+          } else {
+            this._visiblePages.delete(pageIndex);
+          }
+        }
+      },
+      {
+        root: this.container,
+        // Generous margin for pre-loading
+        rootMargin: '200px 0px',
+        threshold: 0.01
+      }
+    );
+
+    // Observe all page containers
+    const containers = this.container.querySelectorAll('.page-container');
+    containers.forEach(c => this._intersectionObserver.observe(c));
   }
 
   _updateVisibleRange() {

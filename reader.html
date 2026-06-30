@@ -131,8 +131,8 @@
           <button class="sidebar-icon-btn active" id="toggleThumbnailsBtn" title="Thumbnails">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
           </button>
-          <button class="sidebar-icon-btn" id="toggleOutlineBtn" title="Document Outline" disabled style="opacity:0.3">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+          <button class="sidebar-icon-btn" id="toggleOutlineBtn" title="Document Outline" disabled>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16-12v2h2V5h-2zm0 6h2v-2h-2v2zm0 6h2v-2h-2v2z"/></svg>
           </button>
         </div>
 
@@ -140,6 +140,9 @@
         <div class="sidebar-panel" id="sidebarPanel">
           <div class="thumbnail-container" id="thumbnailContainer">
             <!-- Thumbnails inserted dynamically -->
+          </div>
+          <div class="outline-container" id="outlineContainer" style="display:none">
+            <!-- Outline tree inserted dynamically -->
           </div>
         </div>
 
@@ -164,6 +167,7 @@
   <script src="DarkModeProcessor.js"></script>
   <script src="RenderEngine.js"></script>
   <script src="ThumbnailManager.js"></script>
+  <script src="OutlineManager.js"></script>
   <script src="UIController.js"></script>
   <script src="app.js"></script>
 </body>

@@ -500,6 +500,131 @@ html, body {
   gap: 12px;
 }
 
+/* --- Outline / Table of Contents --- */
+.outline-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #e8e8e8;
+}
+
+.outline-container::-webkit-scrollbar {
+  width: 10px;
+}
+.outline-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.outline-container::-webkit-scrollbar-thumb {
+  background: #757575;
+  border: 2px solid #323639;
+  border-radius: 6px;
+}
+.outline-container::-webkit-scrollbar-thumb:hover {
+  background: #909090;
+}
+
+.outline-tree {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.outline-tree .outline-tree {
+  padding-left: 14px;
+}
+
+.outline-node {
+  list-style: none;
+}
+
+.outline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 5px 12px 5px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+  line-height: 1.4;
+  user-select: none;
+  position: relative;
+}
+
+.outline-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.outline-item.active {
+  background: rgba(33, 181, 244, 0.15);
+  color: var(--accent);
+}
+
+/* Expand/collapse toggle arrow */
+.outline-toggle {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: transform 0.15s, opacity 0.15s;
+  color: #9aa0a6;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.outline-toggle:hover {
+  opacity: 1;
+}
+
+.outline-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+/* Spacer for leaf items (no toggle) */
+.outline-toggle-spacer {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+/* Title text */
+.outline-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Page number — hidden by default, shown on hover */
+.outline-page-num {
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11px;
+  color: #6b7280;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.outline-item:hover .outline-page-num {
+  opacity: 1;
+}
+
+/* Disabled outline button */
+#toggleOutlineBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+#toggleOutlineBtn:disabled:hover {
+  background: transparent;
+  color: #9aa0a6;
+}
+
 /* --- Thumbnail Item --- */
 .thumbnail-item {
   cursor: pointer;

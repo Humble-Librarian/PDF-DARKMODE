@@ -4,6 +4,10 @@ This is a browser extension for Chrome, Brave, and Edge. It lets you read PDF do
 
 The extension uses viewport virtualization and CSS themes on the GPU. It can load documents with more than 250 pages. The extension uses less than 100 MB of memory. It keeps CPU usage low.
 
+<p align="center">
+  <img src="before_after_collage.png" alt="PDF Dark Mode Before vs After Collage" width="800">
+</p>
+
 ## Performance 
 
 The version 2.0.0 update changed the rendering process. The extension now uses virtualized pages, lazy-loaded thumbnails, and CSS themes.
@@ -15,6 +19,10 @@ The version 2.0.0 update changed the rendering process. The extension now uses v
 | **System Memory Usage** | 2.1 GB | 80 to 100 MB | Less memory |
 | **Theme Change** | Slow | Instant | Faster |
 | **Thumbnail Rendering** | Slows down the user interface | Lazy-loaded | Better scrolling |
+
+<p align="center">
+  <img src="performance_comparison.png" alt="Memory Performance Comparison Version 1 vs Version 2" width="700">
+</p>
 
 ## Features
 

@@ -527,13 +527,17 @@ class RenderEngine {
         scale: this.currentScale,
         rotation: this.currentRotation
       });
+      const pixelRatio = window.devicePixelRatio || 1;
 
-      // Create canvas
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      canvas.width = Math.floor(viewport.width * pixelRatio);
+      canvas.height = Math.floor(viewport.height * pixelRatio);
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
       canvas.className = 'page-canvas';
+      
+      ctx.scale(pixelRatio, pixelRatio);
 
       // Render PDF page to canvas
       const renderTask = page.render({
@@ -636,8 +640,11 @@ class RenderEngine {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
 
-    const scaleX = rect.width / canvas.width;
-    const scaleY = rect.height / canvas.height;
+    const logicalWidth = parseFloat(canvas.style.width) || canvas.width;
+    const logicalHeight = parseFloat(canvas.style.height) || canvas.height;
+
+    const scaleX = rect.width / logicalWidth;
+    const scaleY = rect.height / logicalHeight;
 
     textLayer.style.transformOrigin = '0 0';
     textLayer.style.transform = `scale(${scaleX}, ${scaleY})`;

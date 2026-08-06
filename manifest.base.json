@@ -3,9 +3,7 @@
   "name": "PDF Dark Mode Reader",
   "version": "2.1.0",
   "description": "Read PDFs in dark mode with multiple themes. Reduce eye strain and read comfortably. 100% local processing — your files never leave your device.",
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
   "host_permissions": [
     "<all_urls>"
   ],
@@ -17,23 +15,14 @@
       "128": "icons/icon-128.png"
     }
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "lib/pdf.worker.min.js"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ],
+  "web_accessible_resources": [{
+    "resources": ["lib/pdf.worker.min.js"],
+    "matches": ["<all_urls>"]
+  }],
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  },
-  "background": {
-    "service_worker": "background.js"
   }
 }

@@ -13,6 +13,7 @@ class UIController {
    * @param {DarkModeProcessor} options.darkModeProcessor - DarkModeProcessor instance for theme info
    * @param {Function} options.onThemeChange - Callback invoked with (themeName) when user changes theme
    * @param {Function} options.onBackClick - Callback invoked when the back/close button is clicked
+   * @param {Function} [options.onScrollSettle] - Callback invoked when scroll position settles (for auto-save)
    */
   constructor(options) {
     if (!options || !options.renderEngine) {
@@ -36,6 +37,9 @@ class UIController {
 
     /** @type {Function|null} */
     this.onBackClick = options.onBackClick || null;
+
+    /** @type {Function|null} */
+    this.onScrollSettle = options.onScrollSettle || null;
 
     // ---------------------------------------------------------------
     // DOM element references (resolved lazily in init())
@@ -1006,6 +1010,11 @@ class UIController {
             // Sync active outline item
             if (this.outlineManager && typeof this.outlineManager.setActivePage === 'function') {
               this.outlineManager.setActivePage(latestPage);
+            }
+
+            // Notify app for auto-save
+            if (typeof this.onScrollSettle === 'function') {
+              this.onScrollSettle();
             }
           } catch (err) {
             console.error('UIController: Debounced scroll sync failed:', err);

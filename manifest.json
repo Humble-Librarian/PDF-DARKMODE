@@ -3,7 +3,7 @@
   "name": "PDF Dark Mode Reader",
   "version": "2.1.0",
   "description": "Read PDFs in dark mode with multiple themes. Reduce eye strain and read comfortably. 100% local processing — your files never leave your device.",
-  "permissions": [],
+  "permissions": ["storage"],
   "host_permissions": [
     "<all_urls>"
   ],

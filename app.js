@@ -13,6 +13,8 @@ class PDFDarkMode {
     this.currentTheme = 'claude';
     this.currentScale = 1.0;
     this.currentRotation = 0;
+    this.docHash = null; // ponytail: hash of first 4KB, used as storage key
+    this._saveTimer = null;
 
     // Subsystems (initialized when a PDF is loaded)
     this.darkModeProcessor = new DarkModeProcessor();
@@ -151,6 +153,17 @@ class PDFDarkMode {
 
       if (progressText) progressText.textContent = 'Loading PDF...';
 
+      // Hash document for storage key
+      this.docHash = await StorageManager.hash(pdfData);
+
+      // Restore saved state if available
+      const saved = await StorageManager.load(this.docHash);
+      if (saved) {
+        this.currentTheme = saved.theme || this.currentTheme;
+        this.currentScale = saved.zoom || this.currentScale;
+        this.currentRotation = saved.rotation || this.currentRotation;
+      }
+
       // Load PDF document
       this.pdfDocument = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
@@ -161,6 +174,15 @@ class PDFDarkMode {
 
       // Initialize subsystems
       await this._initSubsystems();
+
+      // Restore saved page position after subsystems are ready
+      if (saved && saved.page > 0) {
+        this.renderEngine.jumpToPage(saved.page);
+      }
+
+      // Restore theme selector UI
+      const themeSelector = document.getElementById('themeSelector');
+      if (themeSelector) themeSelector.value = this.currentTheme;
 
     } catch (error) {
       console.error('PDF loading error:', error);
@@ -243,7 +265,8 @@ class PDFDarkMode {
       outlineManager: this.outlineManager,
       darkModeProcessor: this.darkModeProcessor,
       onThemeChange: (themeName) => this._handleThemeChange(themeName),
-      onBackClick: () => this._goBack()
+      onBackClick: () => this._goBack(),
+      onScrollSettle: () => this._debouncedSave()
     });
 
     this.uiController.init();
@@ -279,6 +302,23 @@ class PDFDarkMode {
     if (this.thumbnailManager) {
       this.thumbnailManager.setTheme(themeName);
     }
+    this._debouncedSave();
+  }
+
+  // ponytail: one debounced save covers scroll, theme, zoom — no separate handlers
+  _debouncedSave() {
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      if (!this.docHash || !this.renderEngine) return;
+      StorageManager.save(this.docHash, {
+        page: this.renderEngine.getCurrentPage(),
+        theme: this.currentTheme,
+        zoom: this.renderEngine.getScale(),
+        rotation: this.renderEngine.getRotation ? this.renderEngine.getRotation() : 0,
+        bookmarks: [] // ponytail: populated by Phase 2
+      });
+    }, 1000);
   }
 
   // ---------------------------------------------------------------

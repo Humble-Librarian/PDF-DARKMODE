@@ -519,9 +519,13 @@ class RenderEngine {
 
     try {
       const page = await this.pdfDocument.getPage(pageIndex + 1);
+      state.page = page;
 
       // Check for cancellation
-      if (renderId !== this._renderId || state.state !== RenderEngine.STATE.RENDERING) return;
+      if (renderId !== this._renderId || state.state !== RenderEngine.STATE.RENDERING) {
+        page.cleanup();
+        return;
+      }
 
       const viewport = page.getViewport({
         scale: this.currentScale,
@@ -551,6 +555,7 @@ class RenderEngine {
 
       // Check for cancellation after render
       if (renderId !== this._renderId || state.state !== RenderEngine.STATE.RENDERING) {
+        page.cleanup();
         return;
       }
 
@@ -764,6 +769,16 @@ class RenderEngine {
 
     // Clear render task
     this._cancelRenderTask(state);
+
+    // Free PDF.js internal page memory (fonts, image data)
+    if (state.page && typeof state.page.cleanup === 'function') {
+      try {
+        state.page.cleanup();
+      } catch (err) {
+        console.warn('Error during page cleanup:', err);
+      }
+      state.page = null;
+    }
   }
 
   // ---------------------------------------------------------------

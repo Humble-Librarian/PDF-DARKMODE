@@ -41,7 +41,7 @@ class ThumbnailManager {
      * memory usage minimal and avoid competing with the main viewport.
      * @type {number}
      */
-    this.THUMBNAIL_SCALE = 0.2;
+    this.THUMBNAIL_SCALE = 0.3;
 
     /**
      * Maximum number of concurrent thumbnail renders.
@@ -374,12 +374,21 @@ class ThumbnailManager {
     if (generationId !== this._generationId) return;
 
     const viewport = page.getViewport({ scale: this.THUMBNAIL_SCALE });
+    const pixelRatio = window.devicePixelRatio || 1;
 
     // Create the canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    
+    // Increase internal resolution for high DPI displays
+    canvas.width = Math.floor(viewport.width * pixelRatio);
+    canvas.height = Math.floor(viewport.height * pixelRatio);
+    
+    // Keep CSS dimensions to the scaled viewport size
+    canvas.style.width = `${Math.floor(viewport.width)}px`;
+    canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+    ctx.scale(pixelRatio, pixelRatio);
 
     // Render PDF content
     const renderTask = page.render({

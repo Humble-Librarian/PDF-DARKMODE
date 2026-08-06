@@ -238,7 +238,12 @@ class UIController {
       searchPrevBtn: document.getElementById('searchPrevBtn'),
       searchNextBtn: document.getElementById('searchNextBtn'),
       searchResultText: document.getElementById('searchResultText'),
-      mainPreview: document.getElementById('mainPreview')
+      mainPreview: document.getElementById('mainPreview'),
+      bookmarkBtn: document.getElementById('bookmarkBtn'),
+      toggleBookmarksBtn: document.getElementById('toggleBookmarksBtn'),
+      bookmarksContainer: document.getElementById('bookmarksContainer'),
+      bookmarksList: document.getElementById('bookmarksList'),
+      bookmarksEmpty: document.getElementById('bookmarksEmpty')
     };
   }
 
@@ -439,6 +444,42 @@ class UIController {
       els.toggleOutlineBtn.addEventListener('click', handler);
       this._boundHandlers['click:toggleOutlineBtn'] = handler;
     }
+
+    // --- Toggle Bookmarks Sidebar ---
+    if (els.toggleBookmarksBtn) {
+      const handler = () => {
+        try {
+          const isCurrentlyShowingBookmarks = els.bookmarksContainer && els.bookmarksContainer.style.display !== 'none';
+          const isSidebarOpen = els.sidebarPanel && !els.sidebarPanel.classList.contains('collapsed');
+
+          if (isCurrentlyShowingBookmarks && isSidebarOpen) {
+            els.sidebarPanel.classList.add('collapsed');
+            els.toggleBookmarksBtn.classList.remove('active');
+          } else {
+            if (els.bookmarksContainer) els.bookmarksContainer.style.display = '';
+            if (els.thumbnailContainer) els.thumbnailContainer.style.display = 'none';
+            if (els.outlineContainer) els.outlineContainer.style.display = 'none';
+            if (els.sidebarPanel) els.sidebarPanel.classList.remove('collapsed');
+            els.toggleBookmarksBtn.classList.add('active');
+            if (els.toggleThumbnailsBtn) els.toggleThumbnailsBtn.classList.remove('active');
+            if (els.toggleOutlineBtn) els.toggleOutlineBtn.classList.remove('active');
+          }
+        } catch (err) {
+          console.error('UIController: Toggle bookmarks failed:', err);
+        }
+      };
+      els.toggleBookmarksBtn.addEventListener('click', handler);
+      this._boundHandlers['click:toggleBookmarksBtn'] = handler;
+    }
+
+    // --- Bookmark Current Page ---
+    if (els.bookmarkBtn) {
+      const handler = () => {
+        this._toggleBookmark();
+      };
+      els.bookmarkBtn.addEventListener('click', handler);
+      this._boundHandlers['click:bookmarkBtn'] = handler;
+    }
   }
 
   // =================================================================
@@ -500,6 +541,13 @@ class UIController {
         if (this._els.toggleOutlineBtn && !this._els.toggleOutlineBtn.disabled) {
           this._els.toggleOutlineBtn.click();
         }
+        return;
+      }
+
+      // --- Bookmark Page: Ctrl/Cmd + D ---
+      if (isMod && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        this._toggleBookmark();
         return;
       }
 
@@ -1121,5 +1169,109 @@ class UIController {
     if (this._els.pageCountText) {
       this._els.pageCountText.textContent = `/ ${totalPages}`;
     }
+  }
+
+  // =================================================================
+  // Bookmarks
+  // =================================================================
+
+  // ponytail: bookmarks are just page numbers in a sorted array, no labels, no categories
+  _toggleBookmark() {
+    if (!this.renderEngine) return;
+    const page = this.renderEngine.getCurrentPage();
+    const app = window.pdfDarkMode;
+    if (!app || !app.docHash) return;
+
+    StorageManager.load(app.docHash).then(saved => {
+      const state = saved || { page: 0, theme: 'claude', zoom: 1.0, rotation: 0, bookmarks: [] };
+      const bookmarks = state.bookmarks || [];
+      const idx = bookmarks.indexOf(page);
+
+      if (idx === -1) {
+        bookmarks.push(page);
+        bookmarks.sort((a, b) => a - b);
+      } else {
+        bookmarks.splice(idx, 1);
+      }
+
+      state.bookmarks = bookmarks;
+      StorageManager.save(app.docHash, state);
+      this._renderBookmarks(bookmarks);
+      this._updateBookmarkButton(page, bookmarks);
+    });
+  }
+
+  _renderBookmarks(bookmarks) {
+    const list = this._els?.bookmarksList;
+    const empty = this._els?.bookmarksEmpty;
+    if (!list) return;
+
+    list.innerHTML = '';
+    if (!bookmarks || bookmarks.length === 0) {
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    const currentPage = this.renderEngine ? this.renderEngine.getCurrentPage() : -1;
+
+    for (const page of bookmarks) {
+      const item = document.createElement('div');
+      item.className = 'bookmark-item' + (page === currentPage ? ' active' : '');
+
+      const label = document.createElement('span');
+      label.className = 'bookmark-page';
+      label.textContent = `Page ${page + 1}`;
+
+      const del = document.createElement('button');
+      del.className = 'bookmark-delete';
+      del.textContent = '×';
+      del.title = 'Remove bookmark';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const app = window.pdfDarkMode;
+        if (!app || !app.docHash) return;
+        StorageManager.load(app.docHash).then(saved => {
+          if (!saved) return;
+          saved.bookmarks = (saved.bookmarks || []).filter(b => b !== page);
+          StorageManager.save(app.docHash, saved);
+          this._renderBookmarks(saved.bookmarks);
+          this._updateBookmarkButton(this.renderEngine.getCurrentPage(), saved.bookmarks);
+        });
+      });
+
+      item.addEventListener('click', () => {
+        this.renderEngine.jumpToPage(page);
+      });
+
+      item.appendChild(label);
+      item.appendChild(del);
+      list.appendChild(item);
+    }
+  }
+
+  _updateBookmarkButton(currentPage, bookmarks) {
+    const btn = this._els?.bookmarkBtn;
+    if (!btn) return;
+    if (bookmarks && bookmarks.includes(currentPage)) {
+      btn.classList.add('bookmarked');
+      btn.title = 'Remove bookmark (Ctrl+D)';
+    } else {
+      btn.classList.remove('bookmarked');
+      btn.title = 'Bookmark this page (Ctrl+D)';
+    }
+  }
+
+  // Load and render bookmarks from storage (called from app.js after init)
+  loadBookmarks() {
+    const app = window.pdfDarkMode;
+    if (!app || !app.docHash) return;
+    StorageManager.load(app.docHash).then(saved => {
+      const bookmarks = saved?.bookmarks || [];
+      this._renderBookmarks(bookmarks);
+      if (this.renderEngine) {
+        this._updateBookmarkButton(this.renderEngine.getCurrentPage(), bookmarks);
+      }
+    });
   }
 }

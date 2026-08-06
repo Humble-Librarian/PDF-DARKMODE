@@ -271,6 +271,9 @@ class PDFDarkMode {
 
     this.uiController.init();
 
+    // Load persisted bookmarks
+    this.uiController.loadBookmarks();
+
     // Update initial UI state
     const fileNameDisplay = document.getElementById('fileNameDisplay');
     if (fileNameDisplay) {
@@ -308,15 +311,17 @@ class PDFDarkMode {
   // ponytail: one debounced save covers scroll, theme, zoom — no separate handlers
   _debouncedSave() {
     if (this._saveTimer) clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => {
+    this._saveTimer = setTimeout(async () => {
       this._saveTimer = null;
       if (!this.docHash || !this.renderEngine) return;
+      // ponytail: preserve existing bookmarks from storage
+      const existing = await StorageManager.load(this.docHash);
       StorageManager.save(this.docHash, {
         page: this.renderEngine.getCurrentPage(),
         theme: this.currentTheme,
         zoom: this.renderEngine.getScale(),
         rotation: this.renderEngine.getRotation ? this.renderEngine.getRotation() : 0,
-        bookmarks: [] // ponytail: populated by Phase 2
+        bookmarks: existing?.bookmarks || []
       });
     }, 1000);
   }
@@ -358,6 +363,11 @@ class PDFDarkMode {
     if (oc) {
       oc.innerHTML = '';
       oc.style.display = 'none';
+    }
+    const bc = document.getElementById('bookmarksContainer');
+    if (bc) {
+      bc.innerHTML = '<div class="bookmarks-empty" id="bookmarksEmpty"><p>No bookmarks yet</p><p class="drop-hint">Press Ctrl+D to bookmark the current page</p></div><div class="bookmarks-list" id="bookmarksList"></div>';
+      bc.style.display = 'none';
     }
 
     // Reset sidebar state (restore thumbnails view, disable outline)

@@ -91,6 +91,9 @@
             <button class="icon-btn" id="rotateBtn" title="Rotate (R)">
               <svg viewBox="0 0 24 24"><path d="M15.55 5.55L11 1v3C7.06 4 4 7.06 4 11s3.06 7 7 7c1.53 0 2.96-.49 4.13-1.32l-1.47-1.47C12.83 15.82 11.96 16 11 16c-2.76 0-5-2.24-5-5s2.24-5 5-5v3l4.55-4.55zM13 23l4.55-4.55-4.55-4.55v3c-2.76 0-5-2.24-5-5h-2c0 3.94 3.06 7 7 7v3z"/></svg>
             </button>
+            <button class="icon-btn" id="bookmarkBtn" title="Bookmark this page (Ctrl+D)">
+              <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+            </button>
           </div>
         </div>
 
@@ -134,6 +137,9 @@
           <button class="sidebar-icon-btn" id="toggleOutlineBtn" title="Document Outline" disabled>
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16-12v2h2V5h-2zm0 6h2v-2h-2v2zm0 6h2v-2h-2v2z"/></svg>
           </button>
+          <button class="sidebar-icon-btn" id="toggleBookmarksBtn" title="Bookmarks">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+          </button>
         </div>
 
         <!-- Collapsible Sidebar Panel -->
@@ -143,6 +149,13 @@
           </div>
           <div class="outline-container" id="outlineContainer" style="display:none">
             <!-- Outline tree inserted dynamically -->
+          </div>
+          <div class="bookmarks-container" id="bookmarksContainer" style="display:none">
+            <div class="bookmarks-empty" id="bookmarksEmpty">
+              <p>No bookmarks yet</p>
+              <p class="drop-hint">Press Ctrl+D to bookmark the current page</p>
+            </div>
+            <div class="bookmarks-list" id="bookmarksList"></div>
           </div>
         </div>
 

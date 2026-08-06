@@ -70,13 +70,13 @@ class ThumbnailManager {
     this._pendingPages = new Set();
 
     /** @type {number} */
-    this._activeRenders = 0;
+    
 
     /**
      * FIFO queue of page indices waiting to be rendered.
      * @type {number[]}
      */
-    this._renderQueue = [];
+    
 
     /**
      * Currently highlighted thumbnail index (-1 = none).
@@ -113,8 +113,8 @@ class ThumbnailManager {
     this.container.innerHTML = '';
     this._renderedPages.clear();
     this._pendingPages.clear();
-    this._renderQueue = [];
-    this._activeRenders = 0;
+    
+    
     this._activeIndex = -1;
 
     // Build placeholder DOM
@@ -200,10 +200,10 @@ class ThumbnailManager {
     }
 
     // Clear queues
-    this._renderQueue = [];
+    
     this._pendingPages.clear();
     this._renderedPages.clear();
-    this._activeRenders = 0;
+    
     this._activeIndex = -1;
 
     // Clear DOM
@@ -317,41 +317,17 @@ class ThumbnailManager {
     if (this._pendingPages.has(pageIndex) || this._renderedPages.has(pageIndex)) return;
 
     this._pendingPages.add(pageIndex);
-    this._renderQueue.push(pageIndex);
-    this._processQueue();
-  }
-
-  /**
-   * Drain the render queue respecting MAX_CONCURRENT.
-   * Each render is fire-and-forget; the finally block re-enters
-   * _processQueue to pick up the next item.
-   * @private
-   */
-  _processQueue() {
-    while (this._activeRenders < this.MAX_CONCURRENT && this._renderQueue.length > 0) {
-      const pageIndex = this._renderQueue.shift();
-
-      // Guard: may have been rendered or cancelled in the interim
-      if (this._renderedPages.has(pageIndex)) {
+    
+    // PDF.js and the browser pipeline naturally handle rendering concurrency.
+    this._renderThumbnail(pageIndex)
+      .catch((err) => {
+        if (err && err.name !== 'RenderingCancelledException') {
+          console.warn(`ThumbnailManager: render error for page ${pageIndex + 1}:`, err);
+        }
+      })
+      .finally(() => {
         this._pendingPages.delete(pageIndex);
-        continue;
-      }
-
-      this._activeRenders++;
-
-      this._renderThumbnail(pageIndex)
-        .catch((err) => {
-          // RenderingCancelledException is expected on destroy / rapid scroll
-          if (err && err.name !== 'RenderingCancelledException') {
-            console.warn(`ThumbnailManager: render error for page ${pageIndex + 1}:`, err);
-          }
-        })
-        .finally(() => {
-          this._activeRenders--;
-          this._pendingPages.delete(pageIndex);
-          this._processQueue();
-        });
-    }
+      });
   }
 
   // ---------------------------------------------------------------

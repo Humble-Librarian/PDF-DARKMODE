@@ -78,8 +78,6 @@ class UIController {
     // Bound handler references (for clean removal in destroy())
     // ---------------------------------------------------------------
 
-    this._boundHandlers = {};
-
     /** @type {boolean} */
     this._initialized = false;
 
@@ -138,30 +136,15 @@ class UIController {
     if (!this._initialized) return;
 
     // Remove keyboard handler
-    if (this._boundHandlers.keydown) {
-      document.removeEventListener('keydown', this._boundHandlers.keydown);
-    }
 
     // Remove scroll handler
     const mainPreview = this._els.mainPreview;
-    if (mainPreview && this._boundHandlers.scroll) {
-      mainPreview.removeEventListener('scroll', this._boundHandlers.scroll);
-    }
 
     // Remove text extraction listener
-    if (this._boundHandlers.textExtractionComplete) {
-      document.removeEventListener('textExtractionComplete', this._boundHandlers.textExtractionComplete);
-    }
 
     // Remove toolbar button listeners (cloneNode trick not needed — we
     // stored references, so we use removeEventListener)
-    for (const [elementKey, handler] of Object.entries(this._boundHandlers)) {
-      if (elementKey.startsWith('click:') && this._els) {
-        const elKey = elementKey.slice(6);
-        const el = this._els[elKey];
-        if (el) {
-          el.removeEventListener('click', handler);
-        }
+    
       }
       if (elementKey.startsWith('change:') && this._els) {
         const elKey = elementKey.slice(7);
@@ -215,7 +198,6 @@ class UIController {
     }
     this._focusMode = false;
 
-    this._boundHandlers = {};
     this._els = null;
     this._initialized = false;
   }
@@ -289,7 +271,7 @@ class UIController {
         }
       };
       els.zoomInBtn.addEventListener('click', handler);
-      this._boundHandlers['click:zoomInBtn'] = handler;
+      
     }
 
     // --- Zoom Out ---
@@ -308,7 +290,7 @@ class UIController {
         }
       };
       els.zoomOutBtn.addEventListener('click', handler);
-      this._boundHandlers['click:zoomOutBtn'] = handler;
+      
     }
 
     // --- Rotate ---
@@ -324,7 +306,7 @@ class UIController {
         }
       };
       els.rotateBtn.addEventListener('click', handler);
-      this._boundHandlers['click:rotateBtn'] = handler;
+      
     }
 
     // --- Previous Page ---
@@ -338,7 +320,7 @@ class UIController {
         }
       };
       els.prevPageBtn.addEventListener('click', handler);
-      this._boundHandlers['click:prevPageBtn'] = handler;
+      
     }
 
     // --- Next Page ---
@@ -352,7 +334,7 @@ class UIController {
         }
       };
       els.nextPageBtn.addEventListener('click', handler);
-      this._boundHandlers['click:nextPageBtn'] = handler;
+      
     }
 
     // --- Page Input (number) ---
@@ -368,7 +350,7 @@ class UIController {
         }
       };
       els.pageInput.addEventListener('change', handler);
-      this._boundHandlers['change:pageInput'] = handler;
+      
     }
 
     // --- Theme Selector ---
@@ -385,7 +367,7 @@ class UIController {
         }
       };
       els.themeSelector.addEventListener('change', handler);
-      this._boundHandlers['change:themeSelector'] = handler;
+      
     }
 
     // --- Back / Close Button ---
@@ -400,7 +382,7 @@ class UIController {
         }
       };
       els.backBtn.addEventListener('click', handler);
-      this._boundHandlers['click:backBtn'] = handler;
+      
     }
 
     // --- Toggle Thumbnails Sidebar ---
@@ -427,7 +409,7 @@ class UIController {
         }
       };
       els.toggleThumbnailsBtn.addEventListener('click', handler);
-      this._boundHandlers['click:toggleThumbnailsBtn'] = handler;
+      
     }
 
     // --- Toggle Outline Sidebar ---
@@ -456,7 +438,7 @@ class UIController {
         }
       };
       els.toggleOutlineBtn.addEventListener('click', handler);
-      this._boundHandlers['click:toggleOutlineBtn'] = handler;
+      
     }
 
     // --- Toggle Bookmarks Sidebar ---
@@ -483,7 +465,7 @@ class UIController {
         }
       };
       els.toggleBookmarksBtn.addEventListener('click', handler);
-      this._boundHandlers['click:toggleBookmarksBtn'] = handler;
+      
     }
 
     // --- Bookmark Current Page ---
@@ -492,21 +474,21 @@ class UIController {
         this._toggleBookmark();
       };
       els.bookmarkBtn.addEventListener('click', handler);
-      this._boundHandlers['click:bookmarkBtn'] = handler;
+      
     }
 
     // --- Text-to-Speech ---
     if (els.ttsBtn) {
       const handler = () => this._toggleTTS();
       els.ttsBtn.addEventListener('click', handler);
-      this._boundHandlers['click:ttsBtn'] = handler;
+      
     }
 
     // --- Focus Mode ---
     if (els.focusModeBtn) {
       const handler = () => this._toggleFocusMode();
       els.focusModeBtn.addEventListener('click', handler);
-      this._boundHandlers['click:focusModeBtn'] = handler;
+      
     }
   }
 
@@ -647,7 +629,7 @@ class UIController {
     };
 
     document.addEventListener('keydown', handler);
-    this._boundHandlers.keydown = handler;
+    
   }
 
   // =================================================================
@@ -680,7 +662,7 @@ class UIController {
         }
       };
       els.searchInput.addEventListener('keydown', handler);
-      this._boundHandlers['keydown:searchInput'] = handler;
+      
     }
 
     // --- Previous match ---
@@ -689,7 +671,7 @@ class UIController {
         this.navigateSearch(-1);
       };
       els.searchPrevBtn.addEventListener('click', handler);
-      this._boundHandlers['click:searchPrevBtn'] = handler;
+      
     }
 
     // --- Next match ---
@@ -698,7 +680,7 @@ class UIController {
         this.navigateSearch(1);
       };
       els.searchNextBtn.addEventListener('click', handler);
-      this._boundHandlers['click:searchNextBtn'] = handler;
+      
     }
   }
 
@@ -720,7 +702,7 @@ class UIController {
     };
 
     document.addEventListener('textExtractionComplete', handler);
-    this._boundHandlers.textExtractionComplete = handler;
+    
   }
 
   /**
@@ -1127,7 +1109,7 @@ class UIController {
     };
 
     mainPreview.addEventListener('scroll', handler, { passive: true });
-    this._boundHandlers.scroll = handler;
+    
   }
 
   // =================================================================

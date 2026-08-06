@@ -16,9 +16,8 @@ if (target === 'chrome') {
     "service_worker": "background.js"
   };
 } else if (target === 'firefox') {
-  // Firefox MV3 requires BOTH service_worker AND scripts as fallback
+  // Firefox MV3 uses scripts only — service_worker is unsupported and ignored
   manifest.background = {
-    "service_worker": "background.js",
     "scripts": ["background.js"]
   };
   

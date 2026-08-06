@@ -144,30 +144,6 @@ class UIController {
 
     // Remove toolbar button listeners (cloneNode trick not needed — we
     // stored references, so we use removeEventListener)
-    
-      }
-      if (elementKey.startsWith('change:') && this._els) {
-        const elKey = elementKey.slice(7);
-        const el = this._els[elKey];
-        if (el) {
-          el.removeEventListener('change', handler);
-        }
-      }
-      if (elementKey.startsWith('input:') && this._els) {
-        const elKey = elementKey.slice(6);
-        const el = this._els[elKey];
-        if (el) {
-          el.removeEventListener('input', handler);
-        }
-      }
-      if (elementKey.startsWith('keydown:') && this._els) {
-        const elKey = elementKey.slice(8);
-        const el = this._els[elKey];
-        if (el) {
-          el.removeEventListener('keydown', handler);
-        }
-      }
-    }
 
     // Clear timers
     if (this._scrollDebounceTimer) {

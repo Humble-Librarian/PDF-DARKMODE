@@ -82,6 +82,10 @@ class UIController {
 
     /** @type {boolean} */
     this._initialized = false;
+
+    // ponytail: TTS uses native Web Speech API, no dependencies
+    this._ttsActive = false;
+    this._focusMode = false;
   }
 
   // =================================================================
@@ -204,6 +208,13 @@ class UIController {
     this._currentSearchIndex = -1;
     this._lastSearchQuery = '';
 
+    // Stop TTS if active
+    if (this._ttsActive) {
+      window.speechSynthesis.cancel();
+      this._ttsActive = false;
+    }
+    this._focusMode = false;
+
     this._boundHandlers = {};
     this._els = null;
     this._initialized = false;
@@ -243,7 +254,10 @@ class UIController {
       toggleBookmarksBtn: document.getElementById('toggleBookmarksBtn'),
       bookmarksContainer: document.getElementById('bookmarksContainer'),
       bookmarksList: document.getElementById('bookmarksList'),
-      bookmarksEmpty: document.getElementById('bookmarksEmpty')
+      bookmarksEmpty: document.getElementById('bookmarksEmpty'),
+      ttsBtn: document.getElementById('ttsBtn'),
+      focusModeBtn: document.getElementById('focusModeBtn'),
+      readingProgressBar: document.getElementById('readingProgressBar')
     };
   }
 
@@ -480,6 +494,20 @@ class UIController {
       els.bookmarkBtn.addEventListener('click', handler);
       this._boundHandlers['click:bookmarkBtn'] = handler;
     }
+
+    // --- Text-to-Speech ---
+    if (els.ttsBtn) {
+      const handler = () => this._toggleTTS();
+      els.ttsBtn.addEventListener('click', handler);
+      this._boundHandlers['click:ttsBtn'] = handler;
+    }
+
+    // --- Focus Mode ---
+    if (els.focusModeBtn) {
+      const handler = () => this._toggleFocusMode();
+      els.focusModeBtn.addEventListener('click', handler);
+      this._boundHandlers['click:focusModeBtn'] = handler;
+    }
   }
 
   // =================================================================
@@ -567,6 +595,16 @@ class UIController {
 
       if (!isInputFocused && !isMod) {
         switch (e.key) {
+          case 't':
+          case 'T':
+            this._toggleTTS();
+            return;
+
+          case 'f':
+          case 'F':
+            this._toggleFocusMode();
+            return;
+
           case 'PageUp':
             e.preventDefault();
             try {
@@ -1036,6 +1074,13 @@ class UIController {
         // Page indicator updates immediately (no debounce)
         this._showPageIndicator(currentPage, totalPages);
 
+        // Progress bar
+        this._updateProgressBar(currentPage, totalPages);
+
+        // Focus mode: highlight current page
+        if (this._focusMode) {
+          this._updateFocusPage(currentPage);
+        }
         // Debounce thumbnail and page input updates (80ms)
         if (this._scrollDebounceTimer) {
           clearTimeout(this._scrollDebounceTimer);
@@ -1273,5 +1318,85 @@ class UIController {
         this._updateBookmarkButton(this.renderEngine.getCurrentPage(), bookmarks);
       }
     });
+  }
+
+  // =================================================================
+  // Text-to-Speech (ponytail: native Web Speech API, zero dependencies)
+  // =================================================================
+
+  _toggleTTS() {
+    if (this._ttsActive) {
+      window.speechSynthesis.cancel();
+      this._ttsActive = false;
+      if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
+      return;
+    }
+
+    if (!this.renderEngine) return;
+    const textCache = this.renderEngine.getTextCache();
+    const currentPage = this.renderEngine.getCurrentPage();
+    if (!textCache || !textCache[currentPage]) return;
+
+    const text = textCache[currentPage];
+    if (!text.trim()) return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    // ponytail: browser default voice, default rate. Add controls when users ask.
+    utterance.onend = () => {
+      this._ttsActive = false;
+      if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
+    };
+    utterance.onerror = () => {
+      this._ttsActive = false;
+      if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
+    };
+
+    this._ttsActive = true;
+    if (this._els?.ttsBtn) this._els.ttsBtn.classList.add('tts-active');
+    window.speechSynthesis.speak(utterance);
+  }
+
+  // =================================================================
+  // Focus Mode (ponytail: pure CSS, dims non-active pages)
+  // =================================================================
+
+  _toggleFocusMode() {
+    this._focusMode = !this._focusMode;
+    const mainPreview = this._els?.mainPreview;
+    const btn = this._els?.focusModeBtn;
+
+    if (this._focusMode) {
+      if (mainPreview) mainPreview.classList.add('focus-mode');
+      if (btn) btn.classList.add('focus-active');
+      if (this.renderEngine) {
+        this._updateFocusPage(this.renderEngine.getCurrentPage());
+      }
+    } else {
+      if (mainPreview) mainPreview.classList.remove('focus-mode');
+      if (btn) btn.classList.remove('focus-active');
+      // Remove all focus-active from pages
+      document.querySelectorAll('.page-container.focus-active').forEach(el => {
+        el.classList.remove('focus-active');
+      });
+    }
+  }
+
+  _updateFocusPage(currentPage) {
+    document.querySelectorAll('.page-container.focus-active').forEach(el => {
+      el.classList.remove('focus-active');
+    });
+    const active = document.querySelector(`.page-container[data-page-index="${currentPage}"]`);
+    if (active) active.classList.add('focus-active');
+  }
+
+  // =================================================================
+  // Reading Progress Bar (ponytail: one div, CSS width transition)
+  // =================================================================
+
+  _updateProgressBar(currentPage, totalPages) {
+    const bar = this._els?.readingProgressBar;
+    if (!bar || totalPages <= 1) return;
+    const pct = ((currentPage + 1) / totalPages) * 100;
+    bar.style.width = pct + '%';
   }
 }

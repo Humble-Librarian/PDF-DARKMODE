@@ -1105,6 +1105,14 @@ class UIController {
               this.outlineManager.setActivePage(latestPage);
             }
 
+            // Sync bookmark button state for current page
+            const app = window.pdfDarkMode;
+            if (app && app.docHash) {
+              StorageManager.load(app.docHash).then(saved => {
+                this._updateBookmarkButton(latestPage, saved?.bookmarks || []);
+              });
+            }
+
             // Notify app for auto-save
             if (typeof this.onScrollSettle === 'function') {
               this.onScrollSettle();

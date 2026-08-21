@@ -637,6 +637,10 @@ class RenderEngine {
     // Sync text layer scale with displayed canvas size
     requestAnimationFrame(() => {
       this._syncTextLayerScale(textLayer, canvas);
+      // Dispatch event so search highlights can be applied as pages render
+      document.dispatchEvent(new CustomEvent('pageTextLayerRendered', {
+        detail: { pageIndex: page.pageNumber - 1 }
+      }));
     });
   }
 

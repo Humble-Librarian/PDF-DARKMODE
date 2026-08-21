@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PDF Dark Mode Reader",
-  "version": "2.1.0",
+  "version": "3.1.1",
   "description": "Read PDFs in dark mode with multiple themes. Reduce eye strain and read comfortably. 100% local processing — your files never leave your device.",
   "permissions": [
     "storage"
@@ -34,6 +34,19 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "service_worker": "background.js"
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "pdf-dark-mode@humble-librarian.com",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
   }
 }

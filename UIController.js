@@ -619,7 +619,7 @@ class UIController {
   _bindSearchControls() {
     const els = this._els;
 
-    // --- Search input: execute on Enter, navigate next on subsequent Enter ---
+    // --- Search input: execute on Enter, navigate next (or prev with Shift) on Enter ---
     if (els.searchInput) {
       const handler = (e) => {
         if (e.key === 'Enter') {
@@ -629,16 +629,15 @@ class UIController {
             this._clearSearch();
             return;
           }
-          // If query changed, execute new search; otherwise navigate to next
+          // If query changed, execute new search; otherwise navigate
           if (query !== this._lastSearchQuery) {
             this.executeSearch(query);
           } else {
-            this.navigateSearch(1);
+            this.navigateSearch(e.shiftKey ? -1 : 1);
           }
         }
       };
       els.searchInput.addEventListener('keydown', handler);
-      
     }
 
     // --- Previous match ---
@@ -647,7 +646,6 @@ class UIController {
         this.navigateSearch(-1);
       };
       els.searchPrevBtn.addEventListener('click', handler);
-      
     }
 
     // --- Next match ---
@@ -656,29 +654,32 @@ class UIController {
         this.navigateSearch(1);
       };
       els.searchNextBtn.addEventListener('click', handler);
-      
     }
   }
 
   /**
-   * Listen for the textExtractionComplete event to enable search.
+   * Listen for text extraction and page rendering events.
    * @private
    */
   _bindTextExtractionEvent() {
-    const handler = () => {
+    // When initial text extraction finishes across document
+    document.addEventListener('textExtractionComplete', () => {
       if (this._els && this._els.searchInput) {
         this._els.searchInput.disabled = false;
         this._els.searchInput.placeholder = 'Find in document';
-        // If user typed a query while extraction was running, execute it now
         const pendingQuery = this._els.searchInput.value.trim();
         if (pendingQuery) {
           this.executeSearch(pendingQuery);
         }
       }
-    };
+    });
 
-    document.addEventListener('textExtractionComplete', handler);
-    
+    // When an individual page text layer completes rendering during scroll
+    document.addEventListener('pageTextLayerRendered', (e) => {
+      if (this._lastSearchQuery && e.detail && typeof e.detail.pageIndex === 'number') {
+        this.highlightPage(e.detail.pageIndex);
+      }
+    });
   }
 
   /**
@@ -712,8 +713,13 @@ class UIController {
       if (!pageText) continue;
 
       let pos = pageText.indexOf(lowerQuery);
+      let matchCountOnPage = 0;
       while (pos !== -1) {
-        this._searchResults.push({ pageIndex: i, textIndex: pos });
+        this._searchResults.push({
+          pageIndex: i,
+          matchIndexOnPage: matchCountOnPage
+        });
+        matchCountOnPage++;
         pos = pageText.indexOf(lowerQuery, pos + 1);
       }
     }
@@ -754,130 +760,170 @@ class UIController {
       console.error('UIController: navigateSearch jumpToPage failed:', err);
     }
 
-    // Highlight with a short delay to allow the page to render
-    this.highlightCurrentSearchResult();
+    // Wait for page to render and highlight all rendered pages
+    this._waitForPageRendered(result.pageIndex, () => {
+      this.highlightAllRenderedPages();
+    });
   }
 
   /**
-   * Highlight all search matches on the current result's page in the
-   * rendered text layer. The active match gets an orange background,
-   * all others get yellow.
+   * Highlight search results across all currently rendered page containers.
    */
-  highlightCurrentSearchResult() {
-    if (!this._searchResults || this._searchResults.length === 0) return;
-
-    const result = this._searchResults[this._currentSearchIndex];
-    if (!result) return;
-
-    const pageIndex = result.pageIndex;
-    const query = this._lastSearchQuery.toLowerCase();
-
-    // Determine which occurrence on this page is the active one
-    let localMatchIndex = 0;
-    for (let i = 0; i < this._currentSearchIndex; i++) {
-      if (this._searchResults[i].pageIndex === pageIndex) {
-        localMatchIndex++;
-      }
+  highlightAllRenderedPages() {
+    const query = this._lastSearchQuery ? this._lastSearchQuery.trim() : '';
+    if (!query) {
+      this.clearHighlights();
+      return;
     }
 
-    // Wait for the page to be rendered before highlighting
-    this._waitForPageRendered(pageIndex, () => {
-      const container = document.querySelector(
-        `.page-container[data-page-index="${pageIndex}"]`
-      );
-      if (!container) return;
-
-      const textLayer = container.querySelector('.text-layer');
-      if (!textLayer) return;
-
-      // Clear existing highlights across the entire document
-      this.clearHighlights();
-
-      // Walk all text nodes in the text layer
-      const treeWalker = document.createTreeWalker(
-        textLayer,
-        NodeFilter.SHOW_TEXT,
-        null,
-        false
-      );
-
-      const nodesToHighlight = [];
-      let node;
-      while ((node = treeWalker.nextNode())) {
-        if (node.nodeValue.toLowerCase().includes(query)) {
-          nodesToHighlight.push(node);
-        }
-      }
-
-      let currentLocalCounter = 0;
-      let activeMark = null;
-
-      for (const textNode of nodesToHighlight) {
-        const parent = textNode.parentNode;
-        if (!parent) continue;
-
-        const text = textNode.nodeValue;
-        const lowerText = text.toLowerCase();
-        let matchIndex = lowerText.indexOf(query);
-
-        if (matchIndex === -1) continue;
-
-        const frag = document.createDocumentFragment();
-        let lastIdx = 0;
-
-        // Highlight all occurrences within this text node
-        while (matchIndex !== -1) {
-          // Add text before the match
-          if (matchIndex > lastIdx) {
-            frag.appendChild(document.createTextNode(text.substring(lastIdx, matchIndex)));
-          }
-
-          const mark = document.createElement('mark');
-          mark.className = 'search-highlight';
-
-          if (currentLocalCounter === localMatchIndex) {
-            // Active match: orange
-            mark.style.backgroundColor = '#FF9800';
-            mark.style.color = '#fff';
-            mark.style.outline = '2px solid #FF9800';
-            mark.style.outlineOffset = '1px';
-            mark.style.borderRadius = '2px';
-            activeMark = mark;
-          } else {
-            // Other matches: yellow
-            mark.style.backgroundColor = 'rgba(255, 255, 0, 0.6)';
-            mark.style.color = '#000';
-          }
-
-          mark.textContent = text.substring(matchIndex, matchIndex + query.length);
-          frag.appendChild(mark);
-
-          currentLocalCounter++;
-          lastIdx = matchIndex + query.length;
-          matchIndex = lowerText.indexOf(query, lastIdx);
-        }
-
-        // Add remaining text after the last match
-        if (lastIdx < text.length) {
-          frag.appendChild(document.createTextNode(text.substring(lastIdx)));
-        }
-
-        parent.replaceChild(frag, textNode);
-      }
-
-      // Scroll the active match into view
-      if (activeMark) {
-        activeMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const renderedContainers = document.querySelectorAll('.page-container[data-page-index]');
+    renderedContainers.forEach((container) => {
+      const pageIndex = parseInt(container.getAttribute('data-page-index'), 10);
+      if (!isNaN(pageIndex)) {
+        this.highlightPage(pageIndex);
       }
     });
   }
 
   /**
-   * Remove all search highlight <mark> elements and restore original text nodes.
+   * Alias for backward compatibility.
    */
-  clearHighlights() {
+  highlightCurrentSearchResult() {
+    this.highlightAllRenderedPages();
+  }
+
+  /**
+   * Highlight search matches on a specific page using character-offset DOM range mapping.
+   * @param {number} pageIndex - 0-based page index
+   */
+  highlightPage(pageIndex) {
+    const container = document.querySelector(`.page-container[data-page-index="${pageIndex}"]`);
+    if (!container) return;
+
+    const textLayer = container.querySelector('.text-layer');
+    if (!textLayer) return;
+
+    // Clear existing highlights on this text layer first
+    this.clearHighlights(textLayer);
+
+    const query = this._lastSearchQuery ? this._lastSearchQuery.trim() : '';
+    if (!query) return;
+
+    const lowerQuery = query.toLowerCase();
+
+    // 1. Collect all DOM Text nodes inside textLayer
+    const treeWalker = document.createTreeWalker(
+      textLayer,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+
+    const textNodes = [];
+    let node;
+    while ((node = treeWalker.nextNode())) {
+      if (node.nodeValue) {
+        textNodes.push(node);
+      }
+    }
+
+    if (textNodes.length === 0) return;
+
+    // 2. Build full concatenated page text and character mapping
+    let pageFullText = '';
+    const nodeMap = [];
+
+    for (const textNode of textNodes) {
+      const val = textNode.nodeValue;
+      const start = pageFullText.length;
+      pageFullText += val;
+      const end = pageFullText.length;
+      nodeMap.push({ node: textNode, start, end, text: val });
+    }
+
+    const lowerFullText = pageFullText.toLowerCase();
+
+    // 3. Find all occurrence ranges in pageFullText
+    const matches = [];
+    let pos = lowerFullText.indexOf(lowerQuery);
+    while (pos !== -1) {
+      matches.push({ start: pos, end: pos + lowerQuery.length });
+      pos = lowerFullText.indexOf(lowerQuery, pos + 1);
+    }
+
+    if (matches.length === 0) return;
+
+    // Determine active match for this page
+    const currentResult = this._searchResults[this._currentSearchIndex];
+    const activeMatchIndexOnPage =
+      currentResult && currentResult.pageIndex === pageIndex
+        ? currentResult.matchIndexOnPage
+        : -1;
+
+    let activeMarkElement = null;
+
+    // 4. Map matches onto DOM text nodes
+    for (const mapItem of nodeMap) {
+      const { node: textNode, start: nodeStart, end: nodeEnd, text } = mapItem;
+
+      const overlapping = [];
+      for (let mIdx = 0; mIdx < matches.length; mIdx++) {
+        const m = matches[mIdx];
+        if (m.end > nodeStart && m.start < nodeEnd) {
+          overlapping.push({
+            mIdx,
+            isActive: mIdx === activeMatchIndexOnPage,
+            sliceStart: Math.max(0, m.start - nodeStart),
+            sliceEnd: Math.min(text.length, m.end - nodeStart)
+          });
+        }
+      }
+
+      if (overlapping.length === 0) continue;
+
+      const parent = textNode.parentNode;
+      if (!parent) continue;
+
+      const frag = document.createDocumentFragment();
+      let lastIdx = 0;
+
+      for (const ov of overlapping) {
+        if (ov.sliceStart > lastIdx) {
+          frag.appendChild(document.createTextNode(text.substring(lastIdx, ov.sliceStart)));
+        }
+
+        const mark = document.createElement('mark');
+        mark.className = ov.isActive
+          ? 'search-highlight active-search-highlight'
+          : 'search-highlight';
+        mark.textContent = text.substring(ov.sliceStart, ov.sliceEnd);
+
+        if (ov.isActive) {
+          activeMarkElement = mark;
+        }
+
+        frag.appendChild(mark);
+        lastIdx = ov.sliceEnd;
+      }
+
+      if (lastIdx < text.length) {
+        frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+      }
+
+      parent.replaceChild(frag, textNode);
+    }
+
+    // Scroll active match into view if on this page
+    if (activeMarkElement) {
+      activeMarkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  /**
+   * Remove all search highlight <mark> elements and restore original text nodes.
+   * @param {Element|Document} [target=document] - Element scope to clear
+   */
+  clearHighlights(target = document) {
     try {
       const selection = window.getSelection();
       if (selection) {
@@ -887,7 +933,8 @@ class UIController {
       // Ignore selection errors
     }
 
-    const marks = document.querySelectorAll('mark.search-highlight');
+    const scope = target || document;
+    const marks = scope.querySelectorAll('mark.search-highlight');
     marks.forEach((mark) => {
       const parent = mark.parentNode;
       if (parent) {

@@ -955,10 +955,23 @@ html, body {
    ============================================================ */
 
 mark.search-highlight {
-  padding: 1px 0;
+  background-color: rgba(255, 235, 59, 0.45) !important;
+  color: transparent !important;
   border-radius: 2px;
+  padding: 1px 0;
+  margin: 0;
+  box-shadow: 0 0 0 1px rgba(255, 235, 59, 0.3);
   position: relative;
   z-index: 3;
+  pointer-events: none;
+}
+
+mark.search-highlight.active-search-highlight {
+  background-color: rgba(255, 150, 0, 0.75) !important;
+  color: transparent !important;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #ff9800, 0 0 8px rgba(255, 152, 0, 0.8) !important;
+  z-index: 4;
 }
 
 /* ============================================================

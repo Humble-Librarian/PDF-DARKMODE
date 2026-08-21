@@ -5,38 +5,22 @@
 
 class DarkModeProcessor {
   constructor() {
-    // Theme definitions with CSS filter strings for GPU-accelerated mode
+    // ponytail: pruned redundant theme variants (midnight, forest, contrast) that look nearly identical
     this.themes = {
-      classic: {
-        name: 'Classic Dark',
-        // Pure inversion for true black background
-        cssFilter: 'invert(1) hue-rotate(180deg)',
-        cssBg: '#000000'
-      },
       claude: {
         name: 'Warm Dark',
         cssFilter: 'invert(0.92) hue-rotate(180deg) sepia(0.08)',
         cssBg: '#2a2522'
       },
-      midnight: {
-        name: 'Blue Dark',
-        cssFilter: 'invert(0.9) hue-rotate(200deg)',
-        cssBg: '#191e2d'
-      },
-      forest: {
-        name: 'Green Dark',
-        cssFilter: 'invert(0.9) hue-rotate(160deg)',
-        cssBg: '#19231e'
+      classic: {
+        name: 'Classic Dark',
+        cssFilter: 'invert(1) hue-rotate(180deg)',
+        cssBg: '#000000'
       },
       sepia: {
         name: 'Sepia',
         cssFilter: 'invert(0.85) sepia(0.4) hue-rotate(10deg)',
         cssBg: '#282119'
-      },
-      contrast: {
-        name: 'High Contrast',
-        cssFilter: 'invert(1) contrast(1.3)',
-        cssBg: '#000000'
       }
     };
   }

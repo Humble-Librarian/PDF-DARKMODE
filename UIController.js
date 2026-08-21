@@ -4,6 +4,27 @@
 // floating page indicator, and scroll synchronization.
 // ============================================================
 
+const THEME_SWATCHES = {
+  claude: [
+    { color: '#f0c040', name: 'Golden Amber' },
+    { color: '#5cb8a5', name: 'Sage Teal' },
+    { color: '#e8785a', name: 'Soft Coral' },
+    { color: '#b088d0', name: 'Dusty Lavender' }
+  ],
+  classic: [
+    { color: '#ffeb3b', name: 'Bright Yellow' },
+    { color: '#69f0ae', name: 'Neon Mint' },
+    { color: '#ff4081', name: 'Hot Pink' },
+    { color: '#40c4ff', name: 'Cyan Blue' }
+  ],
+  sepia: [
+    { color: '#d4a843', name: 'Warm Gold' },
+    { color: '#8bc34a', name: 'Leaf Green' },
+    { color: '#e07c5a', name: 'Burnt Terra' },
+    { color: '#64b5f6', name: 'Warm Sky' }
+  ]
+};
+
 class UIController {
   /**
    * @param {Object} options
@@ -109,6 +130,7 @@ class UIController {
     this._bindKeyboardShortcuts();
     this._bindSearchControls();
     this._bindAnnotationControls();
+    this.updateThemeSwatches(this.renderEngine.currentTheme || 'claude');
     this._bindScrollSync();
     this._bindTextExtractionEvent();
 
@@ -211,6 +233,8 @@ class UIController {
       searchPrevBtn: document.getElementById('searchPrevBtn'),
       searchNextBtn: document.getElementById('searchNextBtn'),
       searchResultText: document.getElementById('searchResultText'),
+      searchContainer: document.getElementById('searchContainer'),
+      searchCloseBtn: document.getElementById('searchCloseBtn'),
       mainPreview: document.getElementById('mainPreview'),
       bookmarkBtn: document.getElementById('bookmarkBtn'),
       toggleBookmarksBtn: document.getElementById('toggleBookmarksBtn'),
@@ -256,8 +280,22 @@ class UIController {
       }
     });
 
+    const swatches = document.querySelectorAll('.color-swatch[data-swatch-idx]');
+    swatches.forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        swatches.forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        const color = swatch.dataset.color;
+        if (color) {
+          this.annotationManager.setColor(color);
+          if (els.toolColorPicker) els.toolColorPicker.value = color;
+        }
+      });
+    });
+
     if (els.toolColorPicker) {
       els.toolColorPicker.addEventListener('input', (e) => {
+        swatches.forEach(s => s.classList.remove('active'));
         this.annotationManager.setColor(e.target.value);
       });
     }
@@ -266,6 +304,37 @@ class UIController {
       els.exportPdfBtn.addEventListener('click', () => {
         PDFExportManager.exportViaPrint();
       });
+    }
+  }
+
+  /**
+   * Update color swatch buttons based on active dark mode theme.
+   * @param {string} themeKey
+   */
+  updateThemeSwatches(themeKey) {
+    const palette = THEME_SWATCHES[themeKey] || THEME_SWATCHES.claude;
+    const swatches = document.querySelectorAll('.color-swatch[data-swatch-idx]');
+
+    swatches.forEach((swatch) => {
+      const idx = parseInt(swatch.getAttribute('data-swatch-idx'), 10);
+      if (palette[idx]) {
+        swatch.style.background = palette[idx].color;
+        swatch.dataset.color = palette[idx].color;
+        swatch.title = palette[idx].name;
+      }
+    });
+
+    // Default select Swatch 0 (Yellow variant)
+    if (swatches[0]) {
+      swatches.forEach(s => s.classList.remove('active'));
+      swatches[0].classList.add('active');
+      const activeColor = swatches[0].dataset.color;
+      if (this.annotationManager && activeColor) {
+        this.annotationManager.setColor(activeColor);
+      }
+      if (this._els && this._els.toolColorPicker && activeColor) {
+        this._els.toolColorPicker.value = activeColor;
+      }
     }
   }
 
@@ -385,6 +454,7 @@ class UIController {
         try {
           const themeName = e.target.value;
           this.renderEngine.setTheme(themeName);
+          this.updateThemeSwatches(themeName);
           if (typeof this.onThemeChange === 'function') {
             this.onThemeChange(themeName);
           }
@@ -554,6 +624,9 @@ class UIController {
       // --- Find: Ctrl/Cmd + F ---
       if (isMod && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault();
+        if (this._els.searchContainer) {
+          this._els.searchContainer.classList.remove('hidden');
+        }
         if (this._els.searchInput) {
           this._els.searchInput.focus();
           this._els.searchInput.select();
@@ -587,13 +660,16 @@ class UIController {
         return;
       }
 
-      // --- Escape: Clear search ---
+      // --- Escape: Hide & clear search ---
       if (e.key === 'Escape') {
         if (this._els.searchInput) {
           this._els.searchInput.value = '';
           this._els.searchInput.blur();
         }
         this._clearSearch();
+        if (this._els.searchContainer) {
+          this._els.searchContainer.classList.add('hidden');
+        }
         return;
       }
 
@@ -704,6 +780,20 @@ class UIController {
         this.navigateSearch(1);
       };
       els.searchNextBtn.addEventListener('click', handler);
+    }
+
+    // --- Close search bar ---
+    if (els.searchCloseBtn) {
+      els.searchCloseBtn.addEventListener('click', () => {
+        if (els.searchInput) {
+          els.searchInput.value = '';
+          els.searchInput.blur();
+        }
+        this._clearSearch();
+        if (els.searchContainer) {
+          els.searchContainer.classList.add('hidden');
+        }
+      });
     }
   }
 
@@ -1387,36 +1477,91 @@ class UIController {
   // Text-to-Speech (ponytail: native Web Speech API, zero dependencies)
   // =================================================================
 
-  _toggleTTS() {
+  async _toggleTTS() {
     if (this._ttsActive) {
-      window.speechSynthesis.cancel();
-      this._ttsActive = false;
-      if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
+      this._stopTTS();
       return;
     }
 
-    if (!this.renderEngine) return;
-    const textCache = this.renderEngine.getTextCache();
-    const currentPage = this.renderEngine.getCurrentPage();
-    if (!textCache || !textCache[currentPage]) return;
+    if (!this.renderEngine || !('speechSynthesis' in window)) {
+      alert('Text-to-Speech is not supported in this browser environment.');
+      return;
+    }
 
-    const text = textCache[currentPage];
-    if (!text.trim()) return;
+    // Priority 1: Read text selected by user cursor
+    const selectedText = window.getSelection ? window.getSelection().toString().trim() : '';
+    let textToRead = selectedText;
+    let pageIndex = this.renderEngine.getCurrentPage();
+
+    if (!textToRead) {
+      textToRead = await this.renderEngine.getRawPageText(pageIndex);
+    }
+
+    if (!textToRead || !textToRead.trim()) {
+      alert('No text found on this page to read out loud.');
+      return;
+    }
+
+    this._startTTS(textToRead, pageIndex, !selectedText);
+  }
+
+  _startTTS(text, pageIndex, autoAdvance = true) {
+    window.speechSynthesis.cancel();
+    if (this._ttsPulseInterval) clearInterval(this._ttsPulseInterval);
 
     const utterance = new SpeechSynthesisUtterance(text);
-    // ponytail: browser default voice, default rate. Add controls when users ask.
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
     utterance.onend = () => {
-      this._ttsActive = false;
-      if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
+      if (this._ttsPulseInterval) clearInterval(this._ttsPulseInterval);
+      
+      // Auto-advance to next page if enabled and pages remain
+      if (autoAdvance && this._ttsActive && this.renderEngine && pageIndex + 1 < this.renderEngine.getTotalPages()) {
+        const nextIdx = pageIndex + 1;
+        this.renderEngine.jumpToPage(nextIdx);
+        setTimeout(async () => {
+          if (this._ttsActive) {
+            const nextText = await this.renderEngine.getRawPageText(nextIdx);
+            if (nextText && nextText.trim()) {
+              this._startTTS(nextText, nextIdx, true);
+            } else {
+              this._stopTTS();
+            }
+          }
+        }, 600);
+      } else {
+        this._stopTTS();
+      }
     };
-    utterance.onerror = () => {
-      this._ttsActive = false;
-      if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
+
+    utterance.onerror = (err) => {
+      console.warn('TTS error:', err);
+      this._stopTTS();
     };
 
     this._ttsActive = true;
     if (this._els?.ttsBtn) this._els.ttsBtn.classList.add('tts-active');
+
+    // Chromium keep-alive pulse (prevents speech engine auto-pausing on long text)
+    this._ttsPulseInterval = setInterval(() => {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+
     window.speechSynthesis.speak(utterance);
+  }
+
+  _stopTTS() {
+    window.speechSynthesis.cancel();
+    if (this._ttsPulseInterval) {
+      clearInterval(this._ttsPulseInterval);
+      this._ttsPulseInterval = null;
+    }
+    this._ttsActive = false;
+    if (this._els?.ttsBtn) this._els.ttsBtn.classList.remove('tts-active');
   }
 
   // =================================================================

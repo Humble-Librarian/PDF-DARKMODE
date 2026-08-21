@@ -64,8 +64,9 @@ class RenderEngine {
     this._intersectionObserver = null;
     this._visiblePages = new Set();
 
-    // Text content cache for search
+    // Text content cache for search and TTS
     this.textCache = new Array(this.totalPages);
+    this.rawTextCache = new Array(this.totalPages);
   }
 
   // ---------------------------------------------------------------
@@ -582,8 +583,14 @@ class RenderEngine {
 
       // Annotation layer for ink, highlights, and freeText notes
       if (this.annotationManager) {
-        const svgLayer = this.annotationManager.createPageLayer(pageIndex, viewport);
-        pageWrapper.appendChild(svgLayer);
+        try {
+          const svgLayer = this.annotationManager.createPageLayer(pageIndex, viewport);
+          if (svgLayer) {
+            pageWrapper.appendChild(svgLayer);
+          }
+        } catch (annotErr) {
+          console.warn(`Annotation layer error page ${pageIndex + 1}:`, annotErr);
+        }
       }
 
       // Replace placeholder content
@@ -680,8 +687,10 @@ class RenderEngine {
         const page = await this.pdfDocument.getPage(i + 1);
         const textContent = await page.getTextContent();
         const text = textContent.items.map(item => item.str).join(' ');
+        this.rawTextCache[i] = text;
         this.textCache[i] = text.toLowerCase();
       } catch (err) {
+        this.rawTextCache[i] = '';
         this.textCache[i] = '';
       }
 
@@ -695,6 +704,31 @@ class RenderEngine {
 
     // Dispatch event so UI can enable search
     document.dispatchEvent(new CustomEvent('textExtractionComplete'));
+  }
+
+  /**
+   * Get raw (case-preserved) text content for a page (for Text-to-Speech).
+   * Fetches on-demand if background extraction hasn't reached this page yet.
+   * @param {number} pageIndex
+   * @returns {Promise<string>}
+   */
+  async getRawPageText(pageIndex) {
+    if (pageIndex < 0 || pageIndex >= this.totalPages) return '';
+    if (this.rawTextCache && this.rawTextCache[pageIndex] !== undefined) {
+      return this.rawTextCache[pageIndex];
+    }
+    try {
+      const page = await this.pdfDocument.getPage(pageIndex + 1);
+      const textContent = await page.getTextContent();
+      const text = textContent.items.map(item => item.str).join(' ');
+      if (!this.rawTextCache) this.rawTextCache = new Array(this.totalPages);
+      this.rawTextCache[pageIndex] = text;
+      this.textCache[pageIndex] = text.toLowerCase();
+      return text;
+    } catch (err) {
+      console.warn(`Failed to extract text for page ${pageIndex + 1}:`, err);
+      return '';
+    }
   }
 
   // ---------------------------------------------------------------

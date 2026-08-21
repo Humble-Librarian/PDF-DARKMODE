@@ -238,8 +238,19 @@ html, body {
 }
 
 /* --- TTS Active State --- */
+#ttsBtn.tts-active {
+  background: rgba(33, 181, 244, 0.25) !important;
+  border-radius: 4px;
+  animation: pulse-tts 1.5s infinite alternate;
+}
+
 #ttsBtn.tts-active svg {
-  fill: #21B5F4;
+  fill: #21B5F4 !important;
+}
+
+@keyframes pulse-tts {
+  0% { box-shadow: 0 0 4px rgba(33, 181, 244, 0.4); }
+  100% { box-shadow: 0 0 12px rgba(33, 181, 244, 0.9); }
 }
 
 #focusModeBtn.focus-active svg {
@@ -323,6 +334,17 @@ html, body {
   background: rgba(255,255,255,0.1);
 }
 
+.icon-btn.active {
+  background: var(--accent, #4f46e5) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(79, 70, 229, 0.5);
+  border-radius: 4px;
+}
+
+.icon-btn.active svg {
+  fill: #ffffff !important;
+}
+
 .icon-btn svg {
   width: 20px;
   height: 20px;
@@ -379,21 +401,31 @@ html, body {
   min-width: 0; /* Prevent flex blowout */
 }
 
-/* --- Search UI --- */
+/* --- Search UI Floating Popover (Positioned below navbar) --- */
 .search-container {
   display: flex;
   align-items: center;
-  background: #3c4043;
-  border-radius: 4px;
-  padding: 2px 4px 2px 8px;
-  height: 32px;
-  position: relative;
-  border: 1px solid transparent;
+  background: #28292c;
+  border-radius: 6px;
+  padding: 4px 8px;
+  height: 38px;
+  position: absolute;
+  top: 54px;
+  right: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  transition: opacity 0.15s ease;
+}
+
+.search-container.hidden {
+  display: none !important;
 }
 
 .search-container:focus-within {
   border-color: var(--accent);
-  background: #202124;
+  background: #1f2023;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.8);
 }
 
 .search-icon {
@@ -1103,8 +1135,8 @@ mark.search-highlight.active-search-highlight {
 }
 
 .color-picker-input {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -1121,6 +1153,53 @@ mark.search-highlight.active-search-highlight {
 .color-picker-input::-webkit-color-swatch {
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
+}
+
+/* Color Swatches Pill */
+.swatch-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 3px 6px;
+  border-radius: 12px;
+  margin: 0 4px;
+}
+
+.color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.2);
+}
+
+.color-swatch.active {
+  border: 2px solid #ffffff;
+  transform: scale(1.25);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+/* Inline Text Editor Box */
+.inline-annotation-editor {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  animation: popIn 0.15s ease-out;
+}
+
+.inline-annotation-editor:empty:before {
+  content: attr(placeholder);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ============================================================

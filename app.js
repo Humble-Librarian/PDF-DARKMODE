@@ -18,6 +18,8 @@ class PDFDarkMode {
 
     // Subsystems (initialized when a PDF is loaded)
     this.darkModeProcessor = new DarkModeProcessor();
+    this.annotationManager = new AnnotationManager();
+    this.annotationManager.onStateChange = () => this._debouncedSave();
     this.renderEngine = null;
     this.thumbnailManager = null;
     this.outlineManager = null;
@@ -162,6 +164,9 @@ class PDFDarkMode {
         this.currentTheme = saved.theme || this.currentTheme;
         this.currentScale = saved.zoom || this.currentScale;
         this.currentRotation = saved.rotation || this.currentRotation;
+        if (saved.annotations) {
+          this.annotationManager.loadAnnotations(saved.annotations);
+        }
       }
 
       // Load PDF document
@@ -206,6 +211,7 @@ class PDFDarkMode {
       pdfDocument: this.pdfDocument,
       container: mainPreview,
       darkModeProcessor: this.darkModeProcessor,
+      annotationManager: this.annotationManager,
       theme: this.currentTheme,
       scale: this.currentScale,
       rotation: this.currentRotation
@@ -264,6 +270,7 @@ class PDFDarkMode {
       thumbnailManager: this.thumbnailManager,
       outlineManager: this.outlineManager,
       darkModeProcessor: this.darkModeProcessor,
+      annotationManager: this.annotationManager,
       onThemeChange: (themeName) => this._handleThemeChange(themeName),
       onBackClick: () => this._goBack(),
       onScrollSettle: () => this._debouncedSave()
@@ -308,20 +315,20 @@ class PDFDarkMode {
     this._debouncedSave();
   }
 
-  // ponytail: one debounced save covers scroll, theme, zoom — no separate handlers
+  // ponytail: one debounced save covers scroll, theme, zoom, and annotations
   _debouncedSave() {
     if (this._saveTimer) clearTimeout(this._saveTimer);
     this._saveTimer = setTimeout(async () => {
       this._saveTimer = null;
       if (!this.docHash || !this.renderEngine) return;
-      // ponytail: preserve existing bookmarks from storage
       const existing = await StorageManager.load(this.docHash);
       StorageManager.save(this.docHash, {
         page: this.renderEngine.getCurrentPage(),
         theme: this.currentTheme,
         zoom: this.renderEngine.getScale(),
         rotation: this.renderEngine.getRotation ? this.renderEngine.getRotation() : 0,
-        bookmarks: existing?.bookmarks || []
+        bookmarks: existing?.bookmarks || [],
+        annotations: this.annotationManager ? this.annotationManager.serialize() : {}
       });
     }, 1000);
   }

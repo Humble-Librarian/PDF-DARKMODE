@@ -28,8 +28,8 @@ class RenderEngine {
     this.pdfDocument = options.pdfDocument;
     this.container = options.container;
     this.darkModeProcessor = options.darkModeProcessor;
+    this.annotationManager = options.annotationManager || null;
     this.currentTheme = options.theme || 'claude';
-    this.currentScale = options.scale || 1.0;
     this.currentScale = options.scale || 1.0;
     this.currentRotation = options.rotation || 0;
 
@@ -579,6 +579,12 @@ class RenderEngine {
       const textLayer = document.createElement('div');
       textLayer.className = 'text-layer';
       pageWrapper.appendChild(textLayer);
+
+      // Annotation layer for ink, highlights, and freeText notes
+      if (this.annotationManager) {
+        const svgLayer = this.annotationManager.createPageLayer(pageIndex, viewport);
+        pageWrapper.appendChild(svgLayer);
+      }
 
       // Replace placeholder content
       container.innerHTML = '';

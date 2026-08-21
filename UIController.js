@@ -41,6 +41,9 @@ class UIController {
     /** @type {Function|null} */
     this.onScrollSettle = options.onScrollSettle || null;
 
+    /** @type {AnnotationManager|null} */
+    this.annotationManager = options.annotationManager || null;
+
     // ---------------------------------------------------------------
     // DOM element references (resolved lazily in init())
     // ---------------------------------------------------------------
@@ -105,6 +108,7 @@ class UIController {
     this._bindToolbarButtons();
     this._bindKeyboardShortcuts();
     this._bindSearchControls();
+    this._bindAnnotationControls();
     this._bindScrollSync();
     this._bindTextExtractionEvent();
 
@@ -215,8 +219,54 @@ class UIController {
       bookmarksEmpty: document.getElementById('bookmarksEmpty'),
       ttsBtn: document.getElementById('ttsBtn'),
       focusModeBtn: document.getElementById('focusModeBtn'),
-      readingProgressBar: document.getElementById('readingProgressBar')
+      readingProgressBar: document.getElementById('readingProgressBar'),
+      toolSelectBtn: document.getElementById('toolSelectBtn'),
+      toolDrawBtn: document.getElementById('toolDrawBtn'),
+      toolHighlightBtn: document.getElementById('toolHighlightBtn'),
+      toolTextBtn: document.getElementById('toolTextBtn'),
+      toolEraserBtn: document.getElementById('toolEraserBtn'),
+      toolColorPicker: document.getElementById('toolColorPicker'),
+      exportPdfBtn: document.getElementById('exportPdfBtn')
     };
+  }
+
+  /**
+   * Wire up annotation toolbar controls and tool state.
+   * @private
+   */
+  _bindAnnotationControls() {
+    const els = this._els;
+    if (!this.annotationManager) return;
+
+    const tools = [
+      { btn: els.toolSelectBtn, name: 'select' },
+      { btn: els.toolDrawBtn, name: 'draw' },
+      { btn: els.toolHighlightBtn, name: 'highlight' },
+      { btn: els.toolTextBtn, name: 'text' },
+      { btn: els.toolEraserBtn, name: 'eraser' }
+    ];
+
+    tools.forEach(({ btn, name }) => {
+      if (btn) {
+        btn.addEventListener('click', () => {
+          tools.forEach(t => t.btn?.classList.remove('active'));
+          btn.classList.add('active');
+          this.annotationManager.setTool(name);
+        });
+      }
+    });
+
+    if (els.toolColorPicker) {
+      els.toolColorPicker.addEventListener('input', (e) => {
+        this.annotationManager.setColor(e.target.value);
+      });
+    }
+
+    if (els.exportPdfBtn) {
+      els.exportPdfBtn.addEventListener('click', () => {
+        PDFExportManager.exportViaPrint();
+      });
+    }
   }
 
   // =================================================================

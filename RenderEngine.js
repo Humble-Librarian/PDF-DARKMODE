@@ -662,8 +662,13 @@ class RenderEngine {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
 
-    const logicalWidth = parseFloat(canvas.style.width) || canvas.width;
-    const logicalHeight = parseFloat(canvas.style.height) || canvas.height;
+    // Use the text layer's own declared dimensions as the reference.
+    // canvas.style.height is 'auto' (for responsive scaling), so
+    // parseFloat would return NaN and fall back to the pixel-buffer
+    // canvas.height (which includes devicePixelRatio scaling), producing
+    // an incorrect scaleY on HiDPI displays.
+    const logicalWidth = parseFloat(textLayer.style.width) || parseFloat(canvas.style.width) || canvas.width;
+    const logicalHeight = parseFloat(textLayer.style.height) || parseFloat(canvas.style.height) || canvas.height;
 
     const scaleX = rect.width / logicalWidth;
     const scaleY = rect.height / logicalHeight;

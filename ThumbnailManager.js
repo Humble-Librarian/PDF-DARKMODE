@@ -96,6 +96,9 @@ class ThumbnailManager {
      * @type {Function|null}
      */
     this._boundClickHandler = null;
+
+    /** @type {boolean} */
+    this.isInitialized = false;
   }
 
   // ---------------------------------------------------------------
@@ -109,15 +112,15 @@ class ThumbnailManager {
    */
   async init() {
     this._generationId++;
+    this.isInitialized = true;
 
     this.container.innerHTML = '';
     this._renderedPages.clear();
     this._pendingPages.clear();
     
-    
     this._activeIndex = -1;
 
-    // Build placeholder DOM
+    // Build placeholder DOM (fast batch innerHTML)
     this._buildPlaceholders();
 
     // Attach click delegation on the container
@@ -199,8 +202,7 @@ class ThumbnailManager {
       this._boundClickHandler = null;
     }
 
-    // Clear queues
-    
+    this.isInitialized = false;
     this._pendingPages.clear();
     this._renderedPages.clear();
     
@@ -216,18 +218,20 @@ class ThumbnailManager {
 
   /**
    * Build the full list of thumbnail placeholders.
-   * Uses a DocumentFragment for a single reflow.
+   * Uses fast batch innerHTML generation.
    * @private
    */
   _buildPlaceholders() {
-    const fragment = document.createDocumentFragment();
-
+    let html = '';
     for (let i = 0; i < this.totalPages; i++) {
-      const item = this._createThumbnailItem(i);
-      fragment.appendChild(item);
+      html += `<div class="thumbnail-item" data-page-index="${i}" id="thumbnail-${i}">` +
+        `<div class="thumbnail-frame">` +
+          `<div class="thumbnail-placeholder"><span>...</span></div>` +
+        `</div>` +
+        `<div class="thumbnail-label">${i + 1}</div>` +
+      `</div>`;
     }
-
-    this.container.appendChild(fragment);
+    this.container.innerHTML = html;
   }
 
   /**

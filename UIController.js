@@ -494,6 +494,9 @@ class UIController {
             els.toggleThumbnailsBtn.classList.remove('active');
           } else {
             // Switch to thumbnails view and ensure sidebar is open
+            if (this.thumbnailManager && !this.thumbnailManager.isInitialized) {
+              this.thumbnailManager.init();
+            }
             if (els.thumbnailContainer) els.thumbnailContainer.style.display = '';
             if (els.outlineContainer) els.outlineContainer.style.display = 'none';
             if (els.sidebarPanel) els.sidebarPanel.classList.remove('collapsed');

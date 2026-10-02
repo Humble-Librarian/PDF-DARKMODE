@@ -219,7 +219,7 @@ class PDFDarkMode {
 
     await this.renderEngine.init();
 
-    // 2. Initialize Thumbnail Manager
+    // 2. Initialize Thumbnail Manager (lazy — initializes on first sidebar open)
     this.thumbnailManager = new ThumbnailManager({
       container: thumbnailContainer,
       sidebarElement: sidebarPanel,
@@ -230,8 +230,6 @@ class PDFDarkMode {
         this.renderEngine.jumpToPage(pageIndex);
       }
     });
-
-    await this.thumbnailManager.init();
 
     // 3. Initialize Outline Manager (if PDF has bookmarks)
     const outlineContainer = document.getElementById('outlineContainer');

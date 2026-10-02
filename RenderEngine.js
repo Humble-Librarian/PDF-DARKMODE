@@ -60,10 +60,6 @@ class RenderEngine {
     // Cancellation token
     this._renderId = 0;
 
-    // Intersection observer for visible pages
-    this._intersectionObserver = null;
-    this._visiblePages = new Set();
-
     // Text content cache for search and TTS
     this.textCache = new Array(this.totalPages);
     this.rawTextCache = new Array(this.totalPages);
@@ -84,13 +80,12 @@ class RenderEngine {
       console.warn('Could not get first page dimensions:', e);
     }
 
-    // Clear container and build page placeholders
+    // Clear container and build page placeholders (instant innerHTML)
     this.container.innerHTML = '';
     this._buildPlaceholders();
 
     // Set up scroll-based viewport tracking
     this._setupScrollHandler();
-    this._setupIntersectionObserver();
 
     // Initial render pass
     this._updateVisibleRange();
@@ -351,7 +346,6 @@ class RenderEngine {
     this.pageStates.clear();
     this.renderQueue = [];
     this.activeRenders = 0;
-    this._visiblePages.clear();
     this.textCache = [];
   }
 
@@ -361,21 +355,11 @@ class RenderEngine {
 
   _buildPlaceholders() {
     const estimatedHeight = this._getEstimatedPageHeight();
-    const fragment = document.createDocumentFragment();
+    const skeletonMaxW = Math.round(this.basePageWidth * this.currentScale);
+    const skeletonH = estimatedHeight - 40;
 
+    // Initialize state map
     for (let i = 0; i < this.totalPages; i++) {
-      const pageContainer = document.createElement('div');
-      pageContainer.className = 'page-container';
-      pageContainer.dataset.pageIndex = i;
-      pageContainer.style.minHeight = `${estimatedHeight}px`;
-
-      // Loading skeleton
-      const skeleton = this._createSkeleton(i + 1);
-      pageContainer.appendChild(skeleton);
-
-      fragment.appendChild(pageContainer);
-
-      // Initialize state
       this.pageStates.set(i, {
         state: RenderEngine.STATE.NOT_LOADED,
         canvas: null,
@@ -385,7 +369,17 @@ class RenderEngine {
       });
     }
 
-    this.container.appendChild(fragment);
+    // Fast batch innerHTML generation (takes < 2ms for 1000 pages)
+    let html = '';
+    for (let i = 0; i < this.totalPages; i++) {
+      html += `<div class="page-container" data-page-index="${i}" style="min-height:${estimatedHeight}px">` +
+        `<div class="page-skeleton-wrapper">` +
+          `<div class="page-skeleton" style="height:${skeletonH}px;width:100%;max-width:${skeletonMaxW}px;margin:0 auto;border-radius:4px"></div>` +
+          `<div class="skeleton-page-label">Page ${i + 1}</div>` +
+        `</div>` +
+      `</div>`;
+    }
+    this.container.innerHTML = html;
   }
 
   _createSkeleton(pageNumber) {
@@ -394,9 +388,8 @@ class RenderEngine {
 
     const skeleton = document.createElement('div');
     skeleton.className = 'page-skeleton';
-    // Skeleton height matches estimated page height
     const h = this._getEstimatedPageHeight();
-    skeleton.style.height = `${h - 40}px`; // minus padding
+    skeleton.style.height = `${h - 40}px`;
     skeleton.style.width = '100%';
     skeleton.style.maxWidth = `${Math.round(this.basePageWidth * this.currentScale)}px`;
     skeleton.style.margin = '0 auto';
@@ -429,31 +422,6 @@ class RenderEngine {
     };
 
     this.container.addEventListener('scroll', this._boundScrollHandler, { passive: true });
-  }
-
-  _setupIntersectionObserver() {
-    this._intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const pageIndex = parseInt(entry.target.dataset.pageIndex, 10);
-          if (entry.isIntersecting) {
-            this._visiblePages.add(pageIndex);
-          } else {
-            this._visiblePages.delete(pageIndex);
-          }
-        }
-      },
-      {
-        root: this.container,
-        // Generous margin for pre-loading
-        rootMargin: '200px 0px',
-        threshold: 0.01
-      }
-    );
-
-    // Observe all page containers
-    const containers = this.container.querySelectorAll('.page-container');
-    containers.forEach(c => this._intersectionObserver.observe(c));
   }
 
   _updateVisibleRange() {

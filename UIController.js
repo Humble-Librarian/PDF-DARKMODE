@@ -1113,28 +1113,55 @@ class UIController {
       return;
     }
 
-    // Ensure the page gets rendered
+    let finished = false;
+    let cleanup = null;
+
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      if (cleanup) cleanup();
+      callback();
+    };
+
+    const handler = (e) => {
+      if (e.detail && e.detail.pageIndex === pageIndex) {
+        done();
+      }
+    };
+
+    document.addEventListener('pageTextLayerRendered', handler);
+    if (this.renderEngine && this.renderEngine.container) {
+      this.renderEngine.container.addEventListener('pageRendered', handler);
+    }
+
+    const checkInterval = setInterval(() => {
+      if (this.renderEngine.isPageRendered(pageIndex)) {
+        done();
+      }
+    }, 100);
+
+    const timeout = setTimeout(() => {
+      if (!finished) {
+        console.warn(`UIController: Timed out waiting for page ${pageIndex + 1} to render`);
+        done();
+      }
+    }, 15000);
+
+    cleanup = () => {
+      clearInterval(checkInterval);
+      clearTimeout(timeout);
+      document.removeEventListener('pageTextLayerRendered', handler);
+      if (this.renderEngine && this.renderEngine.container) {
+        this.renderEngine.container.removeEventListener('pageRendered', handler);
+      }
+    };
+
+    // Ensure the page gets rendered with priority
     try {
       this.renderEngine.ensurePageRendered(pageIndex);
     } catch (err) {
       console.warn('UIController: ensurePageRendered failed:', err);
     }
-
-    // Poll until rendered or timeout (5 seconds)
-    let elapsed = 0;
-    const pollInterval = 100;
-    const maxWait = 5000;
-
-    const checkInterval = setInterval(() => {
-      elapsed += pollInterval;
-      if (this.renderEngine.isPageRendered(pageIndex)) {
-        clearInterval(checkInterval);
-        callback();
-      } else if (elapsed >= maxWait) {
-        clearInterval(checkInterval);
-        console.warn(`UIController: Timed out waiting for page ${pageIndex + 1} to render`);
-      }
-    }, pollInterval);
   }
 
   // =================================================================

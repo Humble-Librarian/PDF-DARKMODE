@@ -95,8 +95,12 @@ class RenderEngine {
     // Initial render pass
     this._updateVisibleRange();
 
-    // Start background text extraction for search
-    this._extractAllText();
+    // Start background text extraction cooperatively when browser is idle
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(() => this._extractAllText(), { timeout: 2000 });
+    } else {
+      setTimeout(() => this._extractAllText(), 400);
+    }
   }
 
   // ---------------------------------------------------------------
@@ -152,6 +156,9 @@ class RenderEngine {
   jumpToPage(pageIndex, behavior = 'smooth') {
     if (pageIndex < 0 || pageIndex >= this.totalPages) return;
 
+    // Prioritize target page rendering immediately
+    this._prioritizePageRender(pageIndex);
+
     const pageContainer = this.container.querySelector(`[data-page-index="${pageIndex}"]`);
     if (pageContainer) {
       // Calculate offset relative to scroll container
@@ -161,6 +168,56 @@ class RenderEngine {
 
       this.container.scrollTo({ top: scrollTop, behavior });
     }
+  }
+
+  /**
+   * Prioritize rendering a specific page, canceling offscreen in-flight renders.
+   * @param {number} pageIndex
+   * @private
+   */
+  _prioritizePageRender(pageIndex) {
+    if (pageIndex < 0 || pageIndex >= this.totalPages) return;
+    const state = this.pageStates.get(pageIndex);
+    if (!state || state.state === RenderEngine.STATE.RENDERED) return;
+
+    // Cancel in-flight renders for pages that are far from target
+    for (const [idx, s] of this.pageStates.entries()) {
+      if (Math.abs(idx - pageIndex) > this.BUFFER_PAGES) {
+        if (s.state === RenderEngine.STATE.RENDERING) {
+          this._cancelRenderTask(s);
+          s.state = RenderEngine.STATE.NOT_LOADED;
+        } else if (s.state === RenderEngine.STATE.QUEUED) {
+          s.state = RenderEngine.STATE.NOT_LOADED;
+        }
+      }
+    }
+
+    // Filter queue to keep only nearby pages
+    this.renderQueue = this.renderQueue.filter(
+      idx => Math.abs(idx - pageIndex) <= this.BUFFER_PAGES
+    );
+
+    // Enqueue target page at the very front
+    const qIdx = this.renderQueue.indexOf(pageIndex);
+    if (qIdx !== -1) {
+      this.renderQueue.splice(qIdx, 1);
+    }
+    state.state = RenderEngine.STATE.QUEUED;
+    this.renderQueue.unshift(pageIndex);
+
+    // Also queue ±1 buffer pages
+    for (const offset of [-1, 1]) {
+      const bufferIdx = pageIndex + offset;
+      if (bufferIdx >= 0 && bufferIdx < this.totalPages) {
+        const bufState = this.pageStates.get(bufferIdx);
+        if (bufState && bufState.state === RenderEngine.STATE.NOT_LOADED && !this.renderQueue.includes(bufferIdx)) {
+          bufState.state = RenderEngine.STATE.QUEUED;
+          this.renderQueue.push(bufferIdx);
+        }
+      }
+    }
+
+    this._processQueue();
   }
 
   /**
@@ -220,7 +277,28 @@ class RenderEngine {
     const container = this.container.querySelector(`[data-page-index="${pageIndex}"]`);
     if (!container) return;
 
-    await this._renderPage(container, pageIndex);
+    this._prioritizePageRender(pageIndex);
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        this.container.removeEventListener('pageRendered', handler);
+        resolve();
+      };
+      const handler = (e) => {
+        if (e.detail && e.detail.pageIndex === pageIndex) {
+          done();
+        }
+      };
+      this.container.addEventListener('pageRendered', handler);
+
+      // Check if already rendered
+      if (this.isPageRendered(pageIndex)) {
+        done();
+      }
+    });
   }
 
   /**
@@ -606,6 +684,12 @@ class RenderEngine {
       state.pageWrapper = pageWrapper;
       state.textLayer = textLayer;
 
+      // Dispatch pageRendered event for listeners
+      this.container.dispatchEvent(new CustomEvent('pageRendered', {
+        bubbles: true,
+        detail: { pageIndex }
+      }));
+
       // Render text layer (async, non-blocking)
       this._renderTextLayer(page, textLayer, viewport, canvas).catch(err => {
         console.warn(`Text layer error page ${pageIndex + 1}:`, err);
@@ -688,6 +772,17 @@ class RenderEngine {
       // Check for destruction
       if (!this.pdfDocument) return;
 
+      // Cooperative yielding: pause text extraction whenever pages are queued or rendering
+      while (this.activeRenders > 0 || this.renderQueue.length > 0) {
+        await new Promise(r => setTimeout(r, 80));
+        if (!this.pdfDocument) return;
+      }
+
+      // Skip if already extracted (e.g. on demand)
+      if (this.rawTextCache && this.rawTextCache[i] !== undefined) {
+        continue;
+      }
+
       try {
         const page = await this.pdfDocument.getPage(i + 1);
         const textContent = await page.getTextContent();
@@ -699,9 +794,9 @@ class RenderEngine {
         this.textCache[i] = '';
       }
 
-      // Yield to main thread every 10 pages
-      if (i % 10 === 0) {
-        await new Promise(r => setTimeout(r, 0));
+      // Small cooperative pause between pages to keep UI and worker responsive
+      if (i % 5 === 0) {
+        await new Promise(r => setTimeout(r, 20));
       }
     }
 

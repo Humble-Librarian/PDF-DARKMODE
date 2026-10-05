@@ -141,15 +141,10 @@ class UIController {
       this.renderEngine.getTotalPages()
     );
 
-    // Disable search until text extraction completes
+    // Search input is ready from document load
     if (this._els.searchInput) {
-      if (!this.renderEngine.isTextReady()) {
-        this._els.searchInput.disabled = true;
-        this._els.searchInput.placeholder = 'Extracting text...';
-      } else {
-        this._els.searchInput.disabled = false;
-        this._els.searchInput.placeholder = 'Find in document';
-      }
+      this._els.searchInput.disabled = false;
+      this._els.searchInput.placeholder = 'Find in document';
     }
 
     this._initialized = true;
@@ -218,6 +213,7 @@ class UIController {
       zoomOutBtn: document.getElementById('zoomOutBtn'),
       zoomLevelText: document.getElementById('zoomLevelText'),
       rotateBtn: document.getElementById('rotateBtn'),
+      findBtn: document.getElementById('findBtn'),
       prevPageBtn: document.getElementById('prevPageBtn'),
       nextPageBtn: document.getElementById('nextPageBtn'),
       pageInput: document.getElementById('pageInput'),
@@ -634,13 +630,7 @@ class UIController {
       // --- Find: Ctrl/Cmd + F ---
       if (isMod && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault();
-        if (this._els.searchContainer) {
-          this._els.searchContainer.classList.remove('hidden');
-        }
-        if (this._els.searchInput) {
-          this._els.searchInput.focus();
-          this._els.searchInput.select();
-        }
+        this.toggleSearch();
         return;
       }
 
@@ -672,14 +662,7 @@ class UIController {
 
       // --- Escape: Hide & clear search ---
       if (e.key === 'Escape') {
-        if (this._els.searchInput) {
-          this._els.searchInput.value = '';
-          this._els.searchInput.blur();
-        }
-        this._clearSearch();
-        if (this._els.searchContainer) {
-          this._els.searchContainer.classList.add('hidden');
-        }
+        this.closeSearch();
         return;
       }
 
@@ -749,15 +732,61 @@ class UIController {
   // =================================================================
 
   /**
+   * Toggle visibility of the search bar popover.
+   */
+  toggleSearch() {
+    if (!this._els?.searchContainer) return;
+    const isHidden = this._els.searchContainer.classList.contains('hidden');
+    if (isHidden) {
+      this._els.searchContainer.classList.remove('hidden');
+      if (this._els.findBtn) this._els.findBtn.classList.add('active');
+      if (this._els.searchInput) {
+        this._els.searchInput.focus();
+        this._els.searchInput.select();
+      }
+    } else {
+      this.closeSearch();
+    }
+  }
+
+  /**
+   * Close search bar, clear highlights and reset state.
+   */
+  closeSearch() {
+    if (this._els?.searchInput) {
+      this._els.searchInput.value = '';
+      this._els.searchInput.blur();
+    }
+    this._clearSearch();
+    if (this._els?.searchContainer) {
+      this._els.searchContainer.classList.add('hidden');
+    }
+    if (this._els?.findBtn) {
+      this._els.findBtn.classList.remove('active');
+    }
+  }
+
+  /**
    * Wire up search input and navigation buttons.
    * @private
    */
   _bindSearchControls() {
     const els = this._els;
 
-    // --- Search input: execute on Enter, navigate next (or prev with Shift) on Enter ---
+    // --- Search input: live search on input with debounce + Enter navigation ---
     if (els.searchInput) {
-      const handler = (e) => {
+      let debounceTimer = null;
+      els.searchInput.addEventListener('input', () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          const query = els.searchInput.value.trim();
+          if (query !== this._lastSearchQuery) {
+            this.executeSearch(query);
+          }
+        }, 220);
+      });
+
+      els.searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           const query = els.searchInput.value.trim();
@@ -765,44 +794,50 @@ class UIController {
             this._clearSearch();
             return;
           }
-          // If query changed, execute new search; otherwise navigate
           if (query !== this._lastSearchQuery) {
             this.executeSearch(query);
           } else {
             this.navigateSearch(e.shiftKey ? -1 : 1);
           }
         }
-      };
-      els.searchInput.addEventListener('keydown', handler);
+      });
+    }
+
+    // --- Toolbar Find button ---
+    if (els.findBtn) {
+      els.findBtn.addEventListener('click', () => {
+        this.toggleSearch();
+      });
     }
 
     // --- Previous match ---
     if (els.searchPrevBtn) {
-      const handler = () => {
-        this.navigateSearch(-1);
-      };
-      els.searchPrevBtn.addEventListener('click', handler);
+      els.searchPrevBtn.addEventListener('click', () => {
+        const query = els.searchInput ? els.searchInput.value.trim() : '';
+        if (query && query !== this._lastSearchQuery) {
+          this.executeSearch(query, -1);
+        } else {
+          this.navigateSearch(-1);
+        }
+      });
     }
 
     // --- Next match ---
     if (els.searchNextBtn) {
-      const handler = () => {
-        this.navigateSearch(1);
-      };
-      els.searchNextBtn.addEventListener('click', handler);
+      els.searchNextBtn.addEventListener('click', () => {
+        const query = els.searchInput ? els.searchInput.value.trim() : '';
+        if (query && query !== this._lastSearchQuery) {
+          this.executeSearch(query, 1);
+        } else {
+          this.navigateSearch(1);
+        }
+      });
     }
 
     // --- Close search bar ---
     if (els.searchCloseBtn) {
       els.searchCloseBtn.addEventListener('click', () => {
-        if (els.searchInput) {
-          els.searchInput.value = '';
-          els.searchInput.blur();
-        }
-        this._clearSearch();
-        if (els.searchContainer) {
-          els.searchContainer.classList.add('hidden');
-        }
+        this.closeSearch();
       });
     }
   }
@@ -814,13 +849,9 @@ class UIController {
   _bindTextExtractionEvent() {
     // When initial text extraction finishes across document
     document.addEventListener('textExtractionComplete', () => {
-      if (this._els && this._els.searchInput) {
-        this._els.searchInput.disabled = false;
-        this._els.searchInput.placeholder = 'Find in document';
-        const pendingQuery = this._els.searchInput.value.trim();
-        if (pendingQuery) {
-          this.executeSearch(pendingQuery);
-        }
+      const pendingQuery = this._els?.searchInput ? this._els.searchInput.value.trim() : '';
+      if (pendingQuery && pendingQuery === this._lastSearchQuery) {
+        this.executeSearch(pendingQuery);
       }
     });
 
@@ -834,10 +865,11 @@ class UIController {
 
   /**
    * Find all occurrences of query across all pages using the
-   * RenderEngine's text cache.
+   * RenderEngine's text search.
    * @param {string} query - The search query string
+   * @param {number} [initialDirection=1]
    */
-  executeSearch(query) {
+  async executeSearch(query, initialDirection = 1) {
     const resultText = this._els ? this._els.searchResultText : null;
 
     this._lastSearchQuery = query;
@@ -850,32 +882,30 @@ class UIController {
       return;
     }
 
-    const textCache = this.renderEngine.getTextCache();
-    if (!textCache) {
-      if (resultText) resultText.textContent = '0 / 0';
-      return;
-    }
+    if (resultText) resultText.textContent = '...';
 
-    const lowerQuery = query.toLowerCase();
+    // Search asynchronously across all pages via RenderEngine
+    const results = await this.renderEngine.search(query);
 
-    for (let i = 0; i < textCache.length; i++) {
-      const pageText = textCache[i];
-      if (!pageText) continue;
+    // If query was modified while searching, discard stale results
+    if (query !== this._lastSearchQuery) return;
 
-      let pos = pageText.indexOf(lowerQuery);
-      let matchCountOnPage = 0;
-      while (pos !== -1) {
-        this._searchResults.push({
-          pageIndex: i,
-          matchIndexOnPage: matchCountOnPage
-        });
-        matchCountOnPage++;
-        pos = pageText.indexOf(lowerQuery, pos + 1);
-      }
-    }
+    this._searchResults = results;
 
     if (this._searchResults.length > 0) {
-      this.navigateSearch(1); // Jump to first result
+      this._currentSearchIndex = (initialDirection === -1) ? this._searchResults.length - 1 : 0;
+      if (resultText) {
+        resultText.textContent = `${this._currentSearchIndex + 1} / ${this._searchResults.length}`;
+      }
+      const match = this._searchResults[this._currentSearchIndex];
+      try {
+        this.renderEngine.jumpToPage(match.pageIndex);
+      } catch (err) {
+        console.error('UIController: jumpToPage failed:', err);
+      }
+      this._waitForPageRendered(match.pageIndex, () => {
+        this.highlightAllRenderedPages();
+      });
     } else {
       if (resultText) resultText.textContent = '0 / 0';
       this.clearHighlights();

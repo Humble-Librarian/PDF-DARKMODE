@@ -101,6 +101,17 @@ class RenderEngine {
 
     // Set up scroll-based viewport tracking
     this._setupScrollHandler();
+
+    // Start background text extraction cooperatively
+    setTimeout(() => {
+      this.startTextExtraction();
+    }, 50);
+  }
+
+  startTextExtraction() {
+    if (!this._textExtractionStarted) {
+      this._extractAllText();
+    }
   }
 
   // ---------------------------------------------------------------
@@ -784,6 +795,64 @@ class RenderEngine {
 
     this._textExtractionDone = true;
     document.dispatchEvent(new CustomEvent('textExtractionComplete'));
+  }
+
+  /**
+   * Ensure text is extracted for a specific page (on-demand).
+   * @param {number} pageIndex
+   * @returns {Promise<string>} lowercase text
+   */
+  async ensureTextForPage(pageIndex) {
+    if (pageIndex < 0 || pageIndex >= this.totalPages) return '';
+    if (this.textCache && this.textCache[pageIndex] !== undefined) {
+      return this.textCache[pageIndex];
+    }
+    try {
+      const page = await this.pdfDocument.getPage(pageIndex + 1);
+      const textContent = await page.getTextContent();
+      const text = textContent.items.map(item => item.str).join(' ');
+      if (!this.rawTextCache) this.rawTextCache = new Array(this.totalPages);
+      if (!this.textCache) this.textCache = new Array(this.totalPages);
+      this.rawTextCache[pageIndex] = text;
+      this.textCache[pageIndex] = text.toLowerCase();
+      return this.textCache[pageIndex];
+    } catch (err) {
+      return '';
+    }
+  }
+
+  /**
+   * Search all pages for a query string, fetching text on-demand if not yet extracted.
+   * @param {string} query
+   * @returns {Promise<Array<{pageIndex: number, matchIndexOnPage: number}>>}
+   */
+  async search(query) {
+    if (!query) return [];
+    const lowerQuery = query.toLowerCase();
+    const results = [];
+
+    // Ensure background extraction is running
+    this.startTextExtraction();
+
+    for (let i = 0; i < this.totalPages; i++) {
+      let pageText = this.textCache ? this.textCache[i] : undefined;
+      if (pageText === undefined) {
+        pageText = await this.ensureTextForPage(i);
+      }
+      if (!pageText) continue;
+
+      let pos = pageText.indexOf(lowerQuery);
+      let matchCountOnPage = 0;
+      while (pos !== -1) {
+        results.push({
+          pageIndex: i,
+          matchIndexOnPage: matchCountOnPage
+        });
+        matchCountOnPage++;
+        pos = pageText.indexOf(lowerQuery, pos + 1);
+      }
+    }
+    return results;
   }
 
   /**

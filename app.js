@@ -35,9 +35,13 @@ class PDFDarkMode {
   init() {
     // Configure PDF.js worker
     if (typeof pdfjsLib !== 'undefined') {
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('lib/pdf.worker.min.js');
-      } else {
+      try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function') {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('lib/pdf.worker.min.js');
+        } else {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+        }
+      } catch (e) {
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
       }
     }

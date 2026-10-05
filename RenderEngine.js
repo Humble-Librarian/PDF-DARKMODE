@@ -89,13 +89,6 @@ class RenderEngine {
 
     // Initial render pass
     this._updateVisibleRange();
-
-    // Start background text extraction cooperatively when browser is idle
-    if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(() => this._extractAllText(), { timeout: 2000 });
-    } else {
-      setTimeout(() => this._extractAllText(), 400);
-    }
   }
 
   // ---------------------------------------------------------------
@@ -297,10 +290,13 @@ class RenderEngine {
   }
 
   /**
-   * Get cached text content for search.
+   * Get cached text content for search (triggers on-demand extraction if not started).
    * @returns {string[]} Array of lowercase text per page
    */
   getTextCache() {
+    if (!this._textExtractionStarted && !this._textExtractionDone) {
+      this._extractAllText();
+    }
     return this.textCache;
   }
 
@@ -324,12 +320,6 @@ class RenderEngine {
       this._scrollRAF = null;
     }
 
-    // Disconnect observers
-    if (this._intersectionObserver) {
-      this._intersectionObserver.disconnect();
-      this._intersectionObserver = null;
-    }
-
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -347,6 +337,8 @@ class RenderEngine {
     this.renderQueue = [];
     this.activeRenders = 0;
     this.textCache = [];
+    this._textExtractionStarted = false;
+    this._textExtractionDone = false;
   }
 
   // ---------------------------------------------------------------
@@ -426,9 +418,7 @@ class RenderEngine {
 
   _updateVisibleRange() {
     const scrollTop = this.container.scrollTop;
-    const viewportHeight = this.container.clientHeight;
-
-    if (viewportHeight === 0) return; // Container not visible yet
+    const viewportHeight = this.container.clientHeight || window.innerHeight || 800;
 
     const estimatedHeight = this._getEstimatedPageHeight();
 
@@ -734,6 +724,8 @@ class RenderEngine {
   // ---------------------------------------------------------------
 
   async _extractAllText() {
+    if (this._textExtractionStarted || this._textExtractionDone) return;
+    this._textExtractionStarted = true;
     this._textExtractionDone = false;
 
     for (let i = 0; i < this.totalPages; i++) {

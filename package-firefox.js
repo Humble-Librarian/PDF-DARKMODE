@@ -127,8 +127,10 @@ function build() {
   const allFiles = [...rootFiles, ...iconFiles, ...libFiles];
   console.log(`Packaging ${allFiles.length} files with POSIX forward-slash paths...`);
 
+  const manifestBase = JSON.parse(fs.readFileSync(path.join(baseDir, 'manifest.base.json'), 'utf8'));
+  const version = manifestBase.version || '3.1.4';
+  const outPath = path.join(baseDir, `pdf-darkmode-firefox-v${version}.zip`);
   const zipBuffer = createZip(allFiles, baseDir);
-  const outPath = path.join(baseDir, 'pdf-darkmode-firefox-v3.1.3.zip');
   fs.writeFileSync(outPath, zipBuffer);
 
   console.log(`Successfully created ${outPath} (${zipBuffer.length} bytes)`);

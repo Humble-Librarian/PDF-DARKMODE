@@ -781,9 +781,9 @@ class UIController {
         debounceTimer = setTimeout(() => {
           const query = els.searchInput.value.trim();
           if (query !== this._lastSearchQuery) {
-            this.executeSearch(query);
+            this.executeSearch(query, 1, false);
           }
-        }, 220);
+        }, 180);
       });
 
       els.searchInput.addEventListener('keydown', (e) => {
@@ -858,7 +858,7 @@ class UIController {
     // When an individual page text layer completes rendering during scroll
     document.addEventListener('pageTextLayerRendered', (e) => {
       if (this._lastSearchQuery && e.detail && typeof e.detail.pageIndex === 'number') {
-        this.highlightPage(e.detail.pageIndex);
+        this.highlightPage(e.detail.pageIndex, false); // Never auto-scroll on background render
       }
     });
   }
@@ -868,9 +868,15 @@ class UIController {
    * RenderEngine's text search.
    * @param {string} query - The search query string
    * @param {number} [initialDirection=1]
+   * @param {boolean} [autoJump=true]
    */
-  async executeSearch(query, initialDirection = 1) {
+  async executeSearch(query, initialDirection = 1, autoJump = true) {
     const resultText = this._els ? this._els.searchResultText : null;
+    const searchInput = this._els?.searchInput;
+
+    const wasFocused = document.activeElement === searchInput;
+    const selStart = searchInput?.selectionStart;
+    const selEnd = searchInput?.selectionEnd;
 
     this._lastSearchQuery = query;
     this._searchResults = [];
@@ -898,17 +904,35 @@ class UIController {
         resultText.textContent = `${this._currentSearchIndex + 1} / ${this._searchResults.length}`;
       }
       const match = this._searchResults[this._currentSearchIndex];
-      try {
-        this.renderEngine.jumpToPage(match.pageIndex);
-      } catch (err) {
-        console.error('UIController: jumpToPage failed:', err);
+      if (autoJump) {
+        try {
+          this.renderEngine.jumpToPage(match.pageIndex, 'auto');
+        } catch (err) {
+          console.error('UIController: jumpToPage failed:', err);
+        }
+        this._waitForPageRendered(match.pageIndex, () => {
+          this.highlightAllRenderedPages(true);
+          if (wasFocused && searchInput && document.activeElement !== searchInput) {
+            searchInput.focus();
+            if (typeof selStart === 'number' && typeof selEnd === 'number') {
+              try { searchInput.setSelectionRange(selStart, selEnd); } catch (e) {}
+            }
+          }
+        });
+      } else {
+        // Live search while typing: highlight currently rendered pages without auto-scrolling
+        this.highlightAllRenderedPages(false);
       }
-      this._waitForPageRendered(match.pageIndex, () => {
-        this.highlightAllRenderedPages();
-      });
     } else {
       if (resultText) resultText.textContent = '0 / 0';
       this.clearHighlights();
+    }
+
+    if (wasFocused && searchInput && document.activeElement !== searchInput) {
+      searchInput.focus();
+      if (typeof selStart === 'number' && typeof selEnd === 'number') {
+        try { searchInput.setSelectionRange(selStart, selEnd); } catch (e) {}
+      }
     }
   }
 
@@ -918,6 +942,11 @@ class UIController {
    */
   navigateSearch(direction) {
     if (this._searchResults.length === 0) return;
+
+    const searchInput = this._els?.searchInput;
+    const wasFocused = document.activeElement === searchInput;
+    const selStart = searchInput?.selectionStart;
+    const selEnd = searchInput?.selectionEnd;
 
     if (direction === 1) {
       this._currentSearchIndex = (this._currentSearchIndex + 1) % this._searchResults.length;
@@ -942,14 +971,21 @@ class UIController {
 
     // Wait for page to render and highlight all rendered pages
     this._waitForPageRendered(result.pageIndex, () => {
-      this.highlightAllRenderedPages();
+      this.highlightAllRenderedPages(true);
+      if (wasFocused && searchInput && document.activeElement !== searchInput) {
+        searchInput.focus();
+        if (typeof selStart === 'number' && typeof selEnd === 'number') {
+          try { searchInput.setSelectionRange(selStart, selEnd); } catch (e) {}
+        }
+      }
     });
   }
 
   /**
    * Highlight search results across all currently rendered page containers.
+   * @param {boolean} [shouldScrollActive=false]
    */
-  highlightAllRenderedPages() {
+  highlightAllRenderedPages(shouldScrollActive = false) {
     const query = this._lastSearchQuery ? this._lastSearchQuery.trim() : '';
     if (!query) {
       this.clearHighlights();
@@ -960,7 +996,7 @@ class UIController {
     renderedContainers.forEach((container) => {
       const pageIndex = parseInt(container.getAttribute('data-page-index'), 10);
       if (!isNaN(pageIndex)) {
-        this.highlightPage(pageIndex);
+        this.highlightPage(pageIndex, shouldScrollActive);
       }
     });
   }
@@ -969,14 +1005,15 @@ class UIController {
    * Alias for backward compatibility.
    */
   highlightCurrentSearchResult() {
-    this.highlightAllRenderedPages();
+    this.highlightAllRenderedPages(true);
   }
 
   /**
    * Highlight search matches on a specific page using character-offset DOM range mapping.
    * @param {number} pageIndex - 0-based page index
+   * @param {boolean} [shouldScrollIntoView=false]
    */
-  highlightPage(pageIndex) {
+  highlightPage(pageIndex, shouldScrollIntoView = false) {
     const container = document.querySelector(`.page-container[data-page-index="${pageIndex}"]`);
     if (!container) return;
 
@@ -1093,9 +1130,21 @@ class UIController {
       parent.replaceChild(frag, textNode);
     }
 
-    // Scroll active match into view if on this page
-    if (activeMarkElement) {
+    // Scroll active match into view ONLY if explicitly requested (e.g. from user search navigation)
+    if (activeMarkElement && shouldScrollIntoView) {
+      const searchInput = this._els?.searchInput;
+      const wasFocused = document.activeElement === searchInput;
+      const selStart = searchInput?.selectionStart;
+      const selEnd = searchInput?.selectionEnd;
+
       activeMarkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      if (wasFocused && searchInput && document.activeElement !== searchInput) {
+        searchInput.focus();
+        if (typeof selStart === 'number' && typeof selEnd === 'number') {
+          try { searchInput.setSelectionRange(selStart, selEnd); } catch (e) {}
+        }
+      }
     }
   }
 
@@ -1104,15 +1153,6 @@ class UIController {
    * @param {Element|Document} [target=document] - Element scope to clear
    */
   clearHighlights(target = document) {
-    try {
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-      }
-    } catch (e) {
-      // Ignore selection errors
-    }
-
     const scope = target || document;
     const marks = scope.querySelectorAll('mark.search-highlight');
     marks.forEach((mark) => {

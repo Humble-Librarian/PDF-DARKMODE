@@ -364,14 +364,17 @@ html, body {
 .page-input-wrapper {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 0 4px;
   font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 #pageInput {
-  width: 36px;
-  height: 24px;
+  min-width: 44px;
+  width: 48px;
+  height: 26px;
   background: #3c4043;
   border: 1px solid #5f6368;
   color: #f1f3f4;
@@ -380,16 +383,34 @@ html, body {
   font-size: 13px;
   font-family: inherit;
   outline: none;
+  padding: 0 4px;
+  -moz-appearance: textfield;
+}
+
+#pageInput::-webkit-outer-spin-button,
+#pageInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 #pageInput:focus {
   border-color: var(--accent);
 }
 
-#pageCountText, #zoomLevelText {
+#pageCountText {
   font-size: 13px;
-  min-width: 30px;
+  color: #e8eaed;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+#zoomLevelText {
+  font-size: 13px;
+  min-width: 42px;
   text-align: center;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .toolbar-right {
@@ -839,6 +860,7 @@ html, body {
   display: block;
   overscroll-behavior-y: contain;
   scroll-behavior: auto;
+  overflow-anchor: none;
 }
 
 /* Scrollbars */
@@ -873,6 +895,7 @@ html, body {
   position: relative;
   margin-bottom: 24px;
   flex-shrink: 0;
+  contain: layout style;
 }
 
 .page-container canvas {

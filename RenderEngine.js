@@ -1,8 +1,7 @@
 // ============================================================
 // RenderEngine.js — Virtualized PDF Rendering Engine
-// Windowed sliding viewport with page lifecycle state machine,
-// concurrent render queue, and aggressive memory reclamation.
-// Solves browser subpixel/coordinate overflow on 1,000+ page PDFs.
+// High-performance viewport-based rendering with static DOM placeholders,
+// concurrent render queue, instant page navigation, and aggressive memory reclamation.
 // ============================================================
 
 class RenderEngine {
@@ -43,12 +42,13 @@ class RenderEngine {
     this.activeRenders = 0;
     this.MAX_CONCURRENT_RENDERS = 2;
 
-    // Windowed Virtual Viewport
+    // Viewport tracking
     this.currentPage = 0;
-    this.BUFFER_PAGES = 2; // Keep ±2 pages around current page in DOM (at most 5 pages total)
-    this.windowRange = { start: -1, end: -1 };
+    this.visibleRange = { start: 0, end: 0 };
+    this.BUFFER_PAGES = 2;       // Keep ±2 pages around visible rendered
+    this.UNLOAD_DISTANCE = 5;    // Unload pages >5 away from visible
 
-    // Page dimensions (estimated from first page, updated on render)
+    // Base dimensions (derived from first page)
     this.basePageWidth = 800;
     this.basePageHeight = 1100;
 
@@ -81,31 +81,19 @@ class RenderEngine {
       console.warn('Could not get first page dimensions:', e);
     }
 
-    // Initialize state map for all pages
-    this.pageStates.clear();
-    for (let i = 0; i < this.totalPages; i++) {
-      this.pageStates.set(i, {
-        state: RenderEngine.STATE.NOT_LOADED,
-        canvas: null,
-        renderTask: null,
-        pageWrapper: null,
-        textLayer: null,
-        page: null
-      });
-    }
-
-    // Clear container and mount initial window (e.g. pages 0..2)
-    this.container.innerHTML = '';
-    this.windowRange = { start: -1, end: -1 };
-    this._mountWindow(0);
+    // Build static placeholders for all pages
+    this._buildPlaceholders();
 
     // Set up scroll-based viewport tracking
     this._setupScrollHandler();
 
+    // Initial render pass
+    this._updateVisibleRange();
+
     // Start background text extraction cooperatively
     setTimeout(() => {
       this.startTextExtraction();
-    }, 50);
+    }, 100);
   }
 
   startTextExtraction() {
@@ -150,7 +138,7 @@ class RenderEngine {
   }
 
   getVisibleRange() {
-    return { ...this.windowRange };
+    return { ...this.visibleRange };
   }
 
   getPageState(pageIndex) {
@@ -167,26 +155,19 @@ class RenderEngine {
     if (pageIndex < 0 || pageIndex >= this.totalPages) return;
 
     this.currentPage = pageIndex;
+    const pageSlotHeight = this._getPageSlotHeight();
+    const targetScrollTop = pageIndex * pageSlotHeight;
 
-    const inWindow = pageIndex >= this.windowRange.start && pageIndex <= this.windowRange.end;
-    if (!inWindow || this.container.children.length === 0) {
-      this._mountWindow(pageIndex);
-    }
+    // Update visibleRange immediately so render is not dropped by queue filter
+    this.visibleRange.start = Math.max(0, pageIndex - this.BUFFER_PAGES);
+    this.visibleRange.end = Math.min(this.totalPages - 1, pageIndex + this.BUFFER_PAGES);
 
-    const pageContainer = this.container.querySelector(`[data-page-index="${pageIndex}"]`);
-    if (pageContainer) {
-      const containerRect = this.container.getBoundingClientRect();
-      const pageRect = pageContainer.getBoundingClientRect();
-      const scrollTop = this.container.scrollTop + (pageRect.top - containerRect.top);
-
-      this.container.scrollTo({ top: scrollTop, behavior });
-    }
-
+    this.container.scrollTo({ top: targetScrollTop, behavior });
     this._prioritizePageRender(pageIndex);
   }
 
   /**
-   * Prioritize rendering a specific page, canceling offscreen in-flight renders.
+   * Prioritize rendering a specific page, canceling far-away in-flight renders.
    * @param {number} pageIndex
    * @private
    */
@@ -194,6 +175,12 @@ class RenderEngine {
     if (pageIndex < 0 || pageIndex >= this.totalPages) return;
     const state = this.pageStates.get(pageIndex);
     if (!state || state.state === RenderEngine.STATE.RENDERED) return;
+
+    // Ensure visibleRange covers target page
+    if (pageIndex < this.visibleRange.start || pageIndex > this.visibleRange.end) {
+      this.visibleRange.start = Math.max(0, pageIndex - this.BUFFER_PAGES);
+      this.visibleRange.end = Math.min(this.totalPages - 1, pageIndex + this.BUFFER_PAGES);
+    }
 
     // Cancel in-flight renders for pages that are far from target
     for (const [idx, s] of this.pageStates.entries()) {
@@ -212,7 +199,7 @@ class RenderEngine {
       idx => Math.abs(idx - pageIndex) <= this.BUFFER_PAGES
     );
 
-    // Enqueue target page at the very front
+    // Enqueue target page at front
     const qIdx = this.renderQueue.indexOf(pageIndex);
     if (qIdx !== -1) {
       this.renderQueue.splice(qIdx, 1);
@@ -220,10 +207,10 @@ class RenderEngine {
     state.state = RenderEngine.STATE.QUEUED;
     this.renderQueue.unshift(pageIndex);
 
-    // Also queue ±1, ±2 buffer pages in window
+    // Also queue nearby buffer pages
     for (const offset of [-1, 1, -2, 2]) {
       const bufferIdx = pageIndex + offset;
-      if (bufferIdx >= this.windowRange.start && bufferIdx <= this.windowRange.end) {
+      if (bufferIdx >= 0 && bufferIdx < this.totalPages) {
         const bufState = this.pageStates.get(bufferIdx);
         if (bufState && bufState.state === RenderEngine.STATE.NOT_LOADED && !this.renderQueue.includes(bufferIdx)) {
           bufState.state = RenderEngine.STATE.QUEUED;
@@ -237,33 +224,17 @@ class RenderEngine {
 
   /**
    * Get the currently most-visible page index (center of viewport).
+   * Fast O(1) mathematical computation from scrollTop without layout thrashing.
    * @returns {number}
    */
   getCurrentPage() {
-    const containers = this.container.querySelectorAll('.page-container');
-    if (containers.length === 0) return this.currentPage;
-
-    const containerRect = this.container.getBoundingClientRect();
-    const viewportCenterY = containerRect.top + containerRect.height / 2;
-
-    let closestPage = this.currentPage;
-    let minDistance = Infinity;
-
-    for (const container of containers) {
-      const rect = container.getBoundingClientRect();
-      const centerY = rect.top + rect.height / 2;
-      const dist = Math.abs(centerY - viewportCenterY);
-      if (dist < minDistance) {
-        minDistance = dist;
-        const idx = parseInt(container.getAttribute('data-page-index'), 10);
-        if (!isNaN(idx)) {
-          closestPage = idx;
-        }
-      }
-    }
-
-    this.currentPage = closestPage;
-    return closestPage;
+    const scrollTop = this.container.scrollTop;
+    const viewportHeight = this.container.clientHeight || 800;
+    const pageSlotHeight = this._getPageSlotHeight();
+    const centerOffset = scrollTop + viewportHeight / 2;
+    const page = Math.floor(centerOffset / pageSlotHeight);
+    this.currentPage = Math.max(0, Math.min(this.totalPages - 1, page));
+    return this.currentPage;
   }
 
   /**
@@ -277,18 +248,14 @@ class RenderEngine {
   }
 
   /**
-   * Force render a specific page (used by search / outline / bookmarks).
+   * Prioritize render of a specific page without forcing a scroll jump.
    * @param {number} pageIndex
    * @returns {Promise<void>}
    */
   async ensurePageRendered(pageIndex) {
     if (this.isPageRendered(pageIndex)) return;
 
-    if (pageIndex < this.windowRange.start || pageIndex > this.windowRange.end) {
-      this.jumpToPage(pageIndex, 'auto');
-    } else {
-      this._prioritizePageRender(pageIndex);
-    }
+    this._prioritizePageRender(pageIndex);
 
     return new Promise((resolve) => {
       let resolved = false;
@@ -359,104 +326,35 @@ class RenderEngine {
   }
 
   // ---------------------------------------------------------------
-  // Window Mount & Sliding
+  // DOM Placeholders & Skeletons
   // ---------------------------------------------------------------
 
-  _createPageContainer(pageIndex) {
+  _buildPlaceholders() {
     const estimatedHeight = this._getEstimatedPageHeight();
-    const div = document.createElement('div');
-    div.className = 'page-container';
-    div.dataset.pageIndex = String(pageIndex);
-    div.style.minHeight = `${estimatedHeight}px`;
+    const frag = document.createDocumentFragment();
 
-    const state = this.pageStates.get(pageIndex);
-    if (state && state.state === RenderEngine.STATE.RENDERED && state.pageWrapper) {
-      div.appendChild(state.pageWrapper);
-      div.style.minHeight = '';
-    } else {
-      div.appendChild(this._createSkeleton(pageIndex + 1));
-    }
-    return div;
-  }
+    this.pageStates.clear();
+    for (let i = 0; i < this.totalPages; i++) {
+      this.pageStates.set(i, {
+        state: RenderEngine.STATE.NOT_LOADED,
+        canvas: null,
+        renderTask: null,
+        pageWrapper: null,
+        textLayer: null,
+        page: null
+      });
 
-  _mountWindow(centerPageIndex) {
-    const newStart = Math.max(0, centerPageIndex - this.BUFFER_PAGES);
-    const newEnd = Math.min(this.totalPages - 1, centerPageIndex + this.BUFFER_PAGES);
-
-    const oldStart = this.windowRange.start;
-    const oldEnd = this.windowRange.end;
-
-    // Disjoint or initial mount: completely rebuild container
-    if (oldStart === -1 || newStart > oldEnd || newEnd < oldStart || this.container.children.length === 0) {
-      // Unload previously rendered pages
-      if (oldStart !== -1) {
-        for (let i = oldStart; i <= oldEnd; i++) {
-          this._unloadPage(i);
-        }
-      }
-
-      this.container.innerHTML = '';
-      for (let i = newStart; i <= newEnd; i++) {
-        const container = this._createPageContainer(i);
-        this.container.appendChild(container);
-      }
-      this.windowRange = { start: newStart, end: newEnd };
-      this._scheduleRenders();
-      return;
+      const div = document.createElement('div');
+      div.className = 'page-container';
+      div.dataset.pageIndex = String(i);
+      div.style.height = `${estimatedHeight}px`;
+      div.style.minHeight = `${estimatedHeight}px`;
+      div.appendChild(this._createSkeleton(i + 1));
+      frag.appendChild(div);
     }
 
-    // Incremental sliding window:
-
-    // 1. Pages removed from top
-    if (newStart > oldStart) {
-      let removedHeight = 0;
-      for (let i = oldStart; i < newStart; i++) {
-        const el = this.container.querySelector(`[data-page-index="${i}"]`);
-        if (el) {
-          removedHeight += el.offsetHeight + 24; // 24px bottom margin
-          this._unloadPage(i);
-          el.remove();
-        }
-      }
-      if (removedHeight > 0) {
-        this.container.scrollTop = Math.max(0, this.container.scrollTop - removedHeight);
-      }
-    }
-
-    // 2. Pages prepended to top
-    if (newStart < oldStart) {
-      let addedHeight = 0;
-      for (let i = oldStart - 1; i >= newStart; i--) {
-        const el = this._createPageContainer(i);
-        this.container.insertBefore(el, this.container.firstChild);
-        addedHeight += el.offsetHeight || (this._getEstimatedPageHeight() + 24);
-      }
-      if (addedHeight > 0) {
-        this.container.scrollTop += addedHeight;
-      }
-    }
-
-    // 3. Pages removed from bottom
-    if (newEnd < oldEnd) {
-      for (let i = newEnd + 1; i <= oldEnd; i++) {
-        const el = this.container.querySelector(`[data-page-index="${i}"]`);
-        if (el) {
-          this._unloadPage(i);
-          el.remove();
-        }
-      }
-    }
-
-    // 4. Pages appended to bottom
-    if (newEnd > oldEnd) {
-      for (let i = oldEnd + 1; i <= newEnd; i++) {
-        const el = this._createPageContainer(i);
-        this.container.appendChild(el);
-      }
-    }
-
-    this.windowRange = { start: newStart, end: newEnd };
-    this._scheduleRenders();
+    this.container.innerHTML = '';
+    this.container.appendChild(frag);
   }
 
   _createSkeleton(pageNumber) {
@@ -466,7 +364,7 @@ class RenderEngine {
     const skeleton = document.createElement('div');
     skeleton.className = 'page-skeleton';
     const h = this._getEstimatedPageHeight();
-    skeleton.style.height = `${h - 40}px`;
+    skeleton.style.height = `${h}px`;
     skeleton.style.width = '100%';
     skeleton.style.maxWidth = `${Math.round(this.basePageWidth * this.currentScale)}px`;
     skeleton.style.margin = '0 auto';
@@ -482,7 +380,11 @@ class RenderEngine {
   }
 
   _getEstimatedPageHeight() {
-    return Math.round(this.basePageHeight * this.currentScale) + 40;
+    return Math.round(this.basePageHeight * this.currentScale);
+  }
+
+  _getPageSlotHeight() {
+    return this._getEstimatedPageHeight() + 24; // 24px margin-bottom
   }
 
   // ---------------------------------------------------------------
@@ -494,23 +396,30 @@ class RenderEngine {
       if (this._scrollRAF) return;
       this._scrollRAF = requestAnimationFrame(() => {
         this._scrollRAF = null;
-        this._onScroll();
+        this._updateVisibleRange();
       });
     };
 
     this.container.addEventListener('scroll', this._boundScrollHandler, { passive: true });
   }
 
-  _onScroll() {
-    const current = this.getCurrentPage();
-    const targetStart = Math.max(0, current - this.BUFFER_PAGES);
-    const targetEnd = Math.min(this.totalPages - 1, current + this.BUFFER_PAGES);
+  _updateVisibleRange() {
+    const scrollTop = this.container.scrollTop;
+    const viewportHeight = this.container.clientHeight || 800;
+    const pageSlotHeight = this._getPageSlotHeight();
 
-    if (targetStart !== this.windowRange.start || targetEnd !== this.windowRange.end) {
-      this._mountWindow(current);
-    } else {
-      this._scheduleRenders();
-    }
+    const startPage = Math.max(0, Math.floor(scrollTop / pageSlotHeight) - this.BUFFER_PAGES);
+    const endPage = Math.min(
+      this.totalPages - 1,
+      Math.ceil((scrollTop + viewportHeight) / pageSlotHeight) + this.BUFFER_PAGES
+    );
+
+    this.visibleRange.start = startPage;
+    this.visibleRange.end = endPage;
+    this.currentPage = Math.max(0, Math.min(this.totalPages - 1, Math.floor((scrollTop + viewportHeight / 2) / pageSlotHeight)));
+
+    this._scheduleRenders();
+    this._scheduleUnloads();
   }
 
   // ---------------------------------------------------------------
@@ -518,9 +427,7 @@ class RenderEngine {
   // ---------------------------------------------------------------
 
   _scheduleRenders() {
-    const { start, end } = this.windowRange;
-    if (start === -1) return;
-
+    const { start, end } = this.visibleRange;
     const centerPage = this.currentPage;
 
     const pagesToRender = [];
@@ -543,6 +450,27 @@ class RenderEngine {
     this._processQueue();
   }
 
+  _scheduleUnloads() {
+    const { start, end } = this.visibleRange;
+    const unloadDistance = this.BUFFER_PAGES + this.UNLOAD_DISTANCE;
+    const unloadBefore = start - unloadDistance;
+    const unloadAfter = end + unloadDistance;
+
+    for (const [pageIndex, state] of this.pageStates.entries()) {
+      if ((pageIndex < unloadBefore || pageIndex > unloadAfter) && state.state === RenderEngine.STATE.RENDERED) {
+        this._unloadPage(pageIndex);
+        const container = this.container.children[pageIndex];
+        if (container) {
+          const estimatedHeight = this._getEstimatedPageHeight();
+          container.innerHTML = '';
+          container.style.height = `${estimatedHeight}px`;
+          container.style.minHeight = `${estimatedHeight}px`;
+          container.appendChild(this._createSkeleton(pageIndex + 1));
+        }
+      }
+    }
+  }
+
   _enqueueRender(pageIndex) {
     const state = this.pageStates.get(pageIndex);
     if (!state || state.state !== RenderEngine.STATE.NOT_LOADED) return;
@@ -560,13 +488,13 @@ class RenderEngine {
 
       if (!state || state.state !== RenderEngine.STATE.QUEUED) continue;
 
-      // Check if page is still within active window
-      if (pageIndex < this.windowRange.start || pageIndex > this.windowRange.end) {
+      // Check if page is within visible range
+      if (pageIndex < this.visibleRange.start || pageIndex > this.visibleRange.end) {
         state.state = RenderEngine.STATE.NOT_LOADED;
         continue;
       }
 
-      const container = this.container.querySelector(`[data-page-index="${pageIndex}"]`);
+      const container = this.container.children[pageIndex];
       if (!container) {
         state.state = RenderEngine.STATE.NOT_LOADED;
         continue;
@@ -673,11 +601,11 @@ class RenderEngine {
         }
       }
 
-      // Check if container is still in DOM before replacing
+      // Replace skeleton with pageWrapper
       if (container.parentNode) {
         container.innerHTML = '';
         container.appendChild(pageWrapper);
-        container.style.minHeight = '';
+        container.style.height = 'auto';
       }
 
       state.state = RenderEngine.STATE.RENDERED;
@@ -870,6 +798,7 @@ class RenderEngine {
       const textContent = await page.getTextContent();
       const text = textContent.items.map(item => item.str).join(' ');
       if (!this.rawTextCache) this.rawTextCache = new Array(this.totalPages);
+      if (!this.textCache) this.textCache = new Array(this.totalPages);
       this.rawTextCache[pageIndex] = text;
       this.textCache[pageIndex] = text.toLowerCase();
       return text;
@@ -944,24 +873,34 @@ class RenderEngine {
 
   _refreshAllPages() {
     this._renderId++;
-
     const currentPage = this.getCurrentPage();
+    const estimatedHeight = this._getEstimatedPageHeight();
 
     for (const [pageIndex, state] of this.pageStates.entries()) {
       this._cancelRenderTask(state);
       this._freePageMemory(state);
       state.state = RenderEngine.STATE.NOT_LOADED;
+      state.canvas = null;
+      state.pageWrapper = null;
+      state.textLayer = null;
     }
 
     this.renderQueue = [];
     this.activeRenders = 0;
 
-    this.container.innerHTML = '';
-    this.windowRange = { start: -1, end: -1 };
-    this._mountWindow(currentPage);
+    // Update all placeholders
+    const children = this.container.children;
+    for (let i = 0; i < children.length; i++) {
+      const container = children[i];
+      container.style.height = `${estimatedHeight}px`;
+      container.style.minHeight = `${estimatedHeight}px`;
+      container.innerHTML = '';
+      container.appendChild(this._createSkeleton(i + 1));
+    }
 
     requestAnimationFrame(() => {
       this.jumpToPage(currentPage, 'auto');
+      setTimeout(() => this._updateVisibleRange(), 40);
     });
   }
 }

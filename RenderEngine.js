@@ -141,11 +141,8 @@ class RenderEngine {
    * @param {number} pageIndex - 0-based page index
    * @param {string} behavior - 'smooth' or 'auto'
    */
-  jumpToPage(pageIndex, behavior = 'smooth') {
+  jumpToPage(pageIndex, behavior = 'auto') {
     if (pageIndex < 0 || pageIndex >= this.totalPages) return;
-
-    // Prioritize target page rendering immediately
-    this._prioritizePageRender(pageIndex);
 
     const pageContainer = this.container.querySelector(`[data-page-index="${pageIndex}"]`);
     if (pageContainer) {
@@ -154,7 +151,18 @@ class RenderEngine {
       const pageRect = pageContainer.getBoundingClientRect();
       const scrollTop = this.container.scrollTop + (pageRect.top - containerRect.top);
 
-      this.container.scrollTo({ top: scrollTop, behavior });
+      // Instant jump for distant pages (>3 pages) so browser does not stall animating across 1000 pages
+      const current = this.getCurrentPage();
+      const useBehavior = (Math.abs(current - pageIndex) > 3) ? 'auto' : behavior;
+
+      // Update visible range immediately so priority render is not rejected by queue filter
+      this.visibleRange.start = Math.max(0, pageIndex - this.BUFFER_PAGES);
+      this.visibleRange.end = Math.min(this.totalPages - 1, pageIndex + this.BUFFER_PAGES);
+
+      this.container.scrollTo({ top: scrollTop, behavior: useBehavior });
+
+      // Prioritize target page rendering immediately
+      this._prioritizePageRender(pageIndex);
     }
   }
 
@@ -167,6 +175,12 @@ class RenderEngine {
     if (pageIndex < 0 || pageIndex >= this.totalPages) return;
     const state = this.pageStates.get(pageIndex);
     if (!state || state.state === RenderEngine.STATE.RENDERED) return;
+
+    // Ensure visibleRange includes the target page so _processQueue does not filter it out
+    if (pageIndex < this.visibleRange.start || pageIndex > this.visibleRange.end) {
+      this.visibleRange.start = Math.max(0, pageIndex - this.BUFFER_PAGES);
+      this.visibleRange.end = Math.min(this.totalPages - 1, pageIndex + this.BUFFER_PAGES);
+    }
 
     // Cancel in-flight renders for pages that are far from target
     for (const [idx, s] of this.pageStates.entries()) {

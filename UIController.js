@@ -434,18 +434,25 @@ class UIController {
 
     // --- Page Input (number) ---
     if (els.pageInput) {
-      const handler = () => {
+      const doNavigate = () => {
         try {
           const value = parseInt(els.pageInput.value, 10);
           if (!isNaN(value) && value >= 1 && value <= this.renderEngine.getTotalPages()) {
-            this.renderEngine.jumpToPage(value - 1);
+            this.renderEngine.jumpToPage(value - 1, 'auto');
+            els.pageInput.blur();
           }
         } catch (err) {
           console.error('UIController: Page input navigation failed:', err);
         }
       };
-      els.pageInput.addEventListener('change', handler);
-      
+
+      els.pageInput.addEventListener('change', doNavigate);
+      els.pageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doNavigate();
+        }
+      });
     }
 
     // --- Theme Selector ---
